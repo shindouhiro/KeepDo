@@ -28,7 +28,7 @@ function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-
       <div class="space-y-3">
         <article v-for="entry in group.records" :key="entry.id" :id="`journal-entry-${entry.id}`" class="overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-3.5 dark:border-slate-800 dark:bg-[#141b28]">
           <p v-if="entry.content" class="text-sm leading-7 whitespace-pre-wrap [overflow-wrap:anywhere] text-slate-600 dark:text-slate-300">{{ entry.content }}</p>
-          <div v-if="entry.images.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3" :class="entry.content ? 'mt-3' : ''">
+          <div v-if="entry.images.length" class="grid gap-2" :class="[entry.images.length === 1 ? 'max-w-xs grid-cols-1' : entry.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3', entry.content ? 'mt-3' : '']">
             <button v-for="(image, index) in entry.images" :id="`journal-preview-${image.id}`" :key="image.id" type="button" :aria-label="`查看 ${entry.date} 的第 ${index + 1} 张图片`" aria-haspopup="dialog" aria-controls="journal-image-viewer" class="group relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:bg-slate-900" @click="emit('preview', image)">
               <img :src="image.url" :alt="`${entry.date} 的目标进展照片 ${index + 1}`" loading="lazy" width="320" height="240" class="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transition-none" />
               <Images class="absolute right-2 bottom-2 h-3.5 w-3.5 text-white/90 drop-shadow" />

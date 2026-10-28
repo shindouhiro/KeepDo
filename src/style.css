@@ -34,6 +34,17 @@
   }
 }
 
+/* 移动端输入字号至少为 16px，避免 iOS 聚焦时自动放大；保留手势缩放。
+   放在工具样式层之外，确保覆盖表单上的 text-xs、text-sm 等字号。 */
+@media (width < 48rem), (pointer: coarse) {
+  input:not(:where([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"])),
+  textarea,
+  select {
+    min-width: 0;
+    font-size: max(16px, 1rem);
+  }
+}
+
 /* 玻璃拟态与发光效果 */
 .glass-panel {
   background: rgba(255, 255, 255, 0.75);

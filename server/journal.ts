@@ -61,29 +61,30 @@ async function saveEntry(request: Request, env: Env, user: User, goalId: string,
   const removedBytes = priorImages.filter(image => !input.keepImageIds.includes(image.id)).reduce((sum, image) => sum + image.byte_size, 0)
   const deltaBytes = uploads.reduce((sum, image) => sum + image.bytes.byteLength, 0) - removedBytes
   const now = new Date().toISOString()
+  const writeToken = crypto.randomUUID()
   const quota = '(SELECT COALESCE(SUM(byte_size), 0) FROM goal_journal_images WHERE user_id = ?) + ? <= ?'
   const statements = [existing
-    ? env.DB.prepare(`UPDATE goal_journal_entries SET date = ?, content = ?, updated_at = ?, version = version + 1, mutation_id = ? WHERE id = ? AND user_id = ? AND version = ? AND ${quota}`)
-      .bind(input.date, input.content, now, input.operationId, entryId, user.id, input.version, user.id, deltaBytes, JOURNAL_ACCOUNT_IMAGE_LIMIT)
-    : env.DB.prepare(`INSERT OR IGNORE INTO goal_journal_entries (id, user_id, goal_id, date, content, created_at, updated_at, version, mutation_id) SELECT ?, ?, ?, ?, ?, ?, ?, 1, ? WHERE ${quota} AND (SELECT COUNT(*) FROM goal_journal_entries WHERE user_id = ?) < 5000`)
-      .bind(entryId, user.id, goalId, input.date, input.content, now, now, input.operationId, user.id, deltaBytes, JOURNAL_ACCOUNT_IMAGE_LIMIT, user.id)]
+    ? env.DB.prepare(`UPDATE goal_journal_entries SET date = ?, content = ?, updated_at = ?, version = version + 1, mutation_id = ?, write_token = ? WHERE id = ? AND user_id = ? AND version = ? AND ${quota}`)
+      .bind(input.date, input.content, now, input.operationId, writeToken, entryId, user.id, input.version, user.id, deltaBytes, JOURNAL_ACCOUNT_IMAGE_LIMIT)
+    : env.DB.prepare(`INSERT OR IGNORE INTO goal_journal_entries (id, user_id, goal_id, date, content, created_at, updated_at, version, mutation_id, write_token) SELECT ?, ?, ?, ?, ?, ?, ?, 1, ?, ? WHERE ${quota} AND (SELECT COUNT(*) FROM goal_journal_entries WHERE user_id = ?) < 5000`)
+      .bind(entryId, user.id, goalId, input.date, input.content, now, now, input.operationId, writeToken, user.id, deltaBytes, JOURNAL_ACCOUNT_IMAGE_LIMIT, user.id)]
   // 每个图片操作只属于成功写入的这次变更，与版本检查一起原子提交。
-  const gate = 'EXISTS (SELECT 1 FROM goal_journal_entries WHERE id = ? AND user_id = ? AND mutation_id = ?)'
+  const gate = 'EXISTS (SELECT 1 FROM goal_journal_entries WHERE id = ? AND user_id = ? AND write_token = ?)'
   for (const image of priorImages.filter(image => !input.keepImageIds.includes(image.id))) {
-    statements.push(env.DB.prepare(`DELETE FROM goal_journal_images WHERE id = ? AND user_id = ? AND ${gate}`).bind(image.id, user.id, entryId, user.id, input.operationId))
+    statements.push(env.DB.prepare(`DELETE FROM goal_journal_images WHERE id = ? AND user_id = ? AND ${gate}`).bind(image.id, user.id, entryId, user.id, writeToken))
   }
   for (const [position, imageId] of input.keepImageIds.entries()) {
-    statements.push(env.DB.prepare(`UPDATE goal_journal_images SET position = ? WHERE id = ? AND user_id = ? AND ${gate}`).bind(position, imageId, user.id, entryId, user.id, input.operationId))
+    statements.push(env.DB.prepare(`UPDATE goal_journal_images SET position = ? WHERE id = ? AND user_id = ? AND ${gate}`).bind(position, imageId, user.id, entryId, user.id, writeToken))
   }
   for (const [index, image] of uploads.entries()) {
     statements.push(env.DB.prepare(`INSERT INTO goal_journal_images (id, user_id, entry_id, mime_type, byte_size, position, data) SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${gate}`)
-      .bind(image.id, user.id, entryId, image.mime, image.bytes.byteLength, input.keepImageIds.length + index, image.bytes.buffer, entryId, user.id, input.operationId))
+      .bind(image.id, user.id, entryId, image.mime, image.bytes.byteLength, input.keepImageIds.length + index, image.bytes.buffer, entryId, user.id, writeToken))
   }
   const results = await env.DB.batch(statements)
-  if (!results[0]?.meta.changes) throw new HttpError(409, '记录已更新或图片空间已满，请重新加载或减少图片；当前草稿已保留')
   const saved = await env.DB.prepare('SELECT * FROM goal_journal_entries WHERE id = ? AND user_id = ?').bind(entryId, user.id).first<EntryRow>()
+  if (!results[0]?.meta.changes && saved?.mutation_id !== input.operationId) throw new HttpError(409, '记录已更新或图片空间已满，请重新加载或减少图片；当前草稿已保留')
   if (!saved) throw new HttpError(500, '记录读取失败，请重试')
-  return json({ entry: (await entriesWithImages(env, user.id, [saved]))[0] }, existing ? 200 : 201)
+  return json({ entry: (await entriesWithImages(env, user.id, [saved]))[0] }, !existing && results[0]?.meta.changes ? 201 : 200)
 }
 
 export async function handleJournal(request: Request, env: Env, user: User, path: string): Promise<Response | null> {

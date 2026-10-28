@@ -121,6 +121,11 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     assert.equal(removed.status, 200, await removed.clone().text())
     assert.equal((await removed.json() as { entry: GoalJournalEntry }).entry.images.length, 0)
     assert.equal((await request(first.images[0]!.url, 'GET', undefined, cookieA)).status, 404)
+    const concurrentId = crypto.randomUUID()
+    const concurrentInput = { ...initialInput, operationId: crypto.randomUUID() }
+    const concurrent = await Promise.all([saveJournal(concurrentId, concurrentInput, [new Blob([png], { type: 'image/png' })]), saveJournal(concurrentId, concurrentInput, [new Blob([png], { type: 'image/png' })])])
+    assert.deepEqual(concurrent.map(response => response.status).sort(), [200, 201])
+    for (const response of concurrent) assert.equal((await response.json() as { entry: GoalJournalEntry }).entry.images.length, 1)
     for (let index = 0; index < 21; index++) {
       const response = await saveJournal(crypto.randomUUID(), { ...initialInput, content: `时间线记录 ${index}`, operationId: crypto.randomUUID() })
       assert.equal(response.status, 201, await response.clone().text())
@@ -129,8 +134,8 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     assert.equal(page.entries.length, 20)
     assert.ok(page.nextCursor)
     const next = await (await request(`${goalPath}?cursor=${encodeURIComponent(page.nextCursor!)}`, 'GET', undefined, cookieA)).json() as JournalPage
-    assert.equal(next.entries.length, 2)
-    assert.equal(new Set([...page.entries, ...next.entries].map(item => item.id)).size, 22)
+    assert.equal(next.entries.length, 3)
+    assert.equal(new Set([...page.entries, ...next.entries].map(item => item.id)).size, 23)
     assert.equal(next.nextCursor, null)
     assert.equal((await request(`${goalPath}?cursor=invalid`, 'GET', undefined, cookieA)).status, 400)
     const summary = await (await request('/api/journal/summary', 'GET', undefined, cookieA)).json() as { dates: Record<string, string[]> }

@@ -132,10 +132,11 @@ async function handleReset() {
           >
             <div class="flex items-center gap-2.5">
               <Download class="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <span>导出全部数据 (JSON 备份)</span>
+              <span>导出目标、习惯和待办 (JSON 备份)</span>
             </div>
             <span class="text-[11px] font-normal text-slate-400">下载至本地</span>
           </button>
+          <p class="px-1 text-[10px] leading-5 text-slate-400">图文日记单独保存在账号中，暂不包含在此 JSON 备份里。</p>
 
           <input
             id="settings-import-file"

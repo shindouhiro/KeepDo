@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { BookOpen, Check, LoaderCircle, RefreshCw, X } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { BookOpen, Check, LoaderCircle, RefreshCw, X, Plus } from '@lucide/vue'
 import type { Goal } from '../../types'
 import type { GoalJournalEntry, JournalImage } from '../../../shared/journal'
 import type { JournalDraft } from '../../composables/useGoalJournal'
@@ -12,6 +12,7 @@ import GoalCheckInButton from '../GoalCheckInButton.vue'
 import GoalJournalEditor from './GoalJournalEditor.vue'
 import GoalJournalTimeline from './GoalJournalTimeline.vue'
 import JournalImageViewer from './JournalImageViewer.vue'
+import JournalDiscardDialog from './JournalDiscardDialog.vue'
 
 const props = defineProps<{ isOpen: boolean; goal: Goal | null; date: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -25,18 +26,33 @@ const saving = ref(false)
 const saveError = ref('')
 const savedMessage = ref('')
 const preview = ref<JournalImage | null>(null)
+const editorOpen = ref(true)
+const pendingDiscard = ref<'close' | 'cancel' | GoalJournalEntry | null>(null)
 const selectedCount = computed(() => journal.entries.value.filter(entry => entry.date === props.date).length)
 const { handleClose, handleBackdrop } = useNativeDialog('goalJournalDialog', () => props.isOpen, requestClose)
-function canDiscard() { return !dirty.value || window.confirm('有尚未保存的图文记录，确定放弃草稿吗？') }
-function requestClose() { if (!saving.value && canDiscard()) emit('close') }
+function requestClose() {
+  if (saving.value) return
+  if (dirty.value) pendingDiscard.value = 'close'
+  else emit('close')
+}
 function resetEditor() { editing.value = null; editorKey.value++; dirty.value = false; saveError.value = '' }
-function cancelEdit() { if (canDiscard()) resetEditor() }
+function cancelEdit() { if (dirty.value) pendingDiscard.value = 'cancel'; else resetEditor() }
 function editEntry(entry: GoalJournalEntry) {
-  if (saving.value || !canDiscard()) return
+  if (saving.value) return
+  if (dirty.value) { pendingDiscard.value = entry; return }
   editing.value = entry
+  editorOpen.value = true
   editorKey.value++
   saveError.value = ''
-  document.getElementById('journal-entry-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  void nextTick(() => document.getElementById('journal-entry-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+}
+function discard() {
+  const action = pendingDiscard.value
+  pendingDiscard.value = null
+  dirty.value = false
+  if (action === 'close') emit('close')
+  else if (action === 'cancel') resetEditor()
+  else if (action) editEntry(action)
 }
 async function save(draft: JournalDraft) {
   if (saving.value) return
@@ -49,6 +65,7 @@ async function save(draft: JournalDraft) {
     const entry = await journal.save(draft)
     index.markDate(entry.goalId, entry.date)
     resetEditor()
+    editorOpen.value = false
     savedMessage.value = '记录已保存到账号'
   } catch (cause) { saveError.value = cause instanceof Error ? cause.message : '保存失败，请重试，草稿仍然保留' }
   finally { saving.value = false }
@@ -57,7 +74,7 @@ function warnBeforeUnload(event: BeforeUnloadEvent) {
   if (dirty.value || saving.value) { event.preventDefault(); event.returnValue = '' }
 }
 watch(() => props.isOpen, open => {
-  if (open) { resetEditor(); savedMessage.value = ''; window.addEventListener('beforeunload', warnBeforeUnload) }
+  if (open) { resetEditor(); editorOpen.value = true; savedMessage.value = ''; window.addEventListener('beforeunload', warnBeforeUnload) }
   else { preview.value = null; window.removeEventListener('beforeunload', warnBeforeUnload) }
 }, { immediate: true })
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnload))
@@ -81,7 +98,8 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
         </div>
       </header>
       <div id="goal-journal-scroll" class="min-h-0 space-y-6 overflow-y-auto overscroll-contain p-4 sm:p-5">
-        <GoalJournalEditor :key="`${goal.id}-${date}-${editorKey}`" :date="date" :entry="editing" :saving="saving" :error="saveError" @save="save" @cancel="cancelEdit" @dirty="dirty = $event" />
+        <GoalJournalEditor v-if="editorOpen" :key="`${goal.id}-${date}-${editorKey}`" :date="date" :entry="editing" :saving="saving" :error="saveError" @save="save" @cancel="cancelEdit" @dirty="dirty = $event" />
+        <button v-else id="journal-compose" type="button" class="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/40 focus-visible:outline-2 focus-visible:outline-indigo-400 dark:border-slate-700 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/20" @click="editorOpen = true"><Plus class="h-3.5 w-3.5" />再记一笔</button>
         <section aria-labelledby="journal-timeline-heading" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
             <div><h3 id="journal-timeline-heading" class="text-sm font-semibold">成长时间线</h3><p class="mt-1 text-[10px] text-slate-400">每一段记录，都是向目标靠近的痕迹</p></div>
@@ -97,6 +115,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
     </div>
   </dialog>
   <JournalImageViewer :image="preview" @close="preview = null" />
+  <JournalDiscardDialog :open="Boolean(pendingDiscard)" @keep="pendingDiscard = null" @discard="discard" />
 </template>
 <style scoped>
 dialog::backdrop { background: rgb(8 15 28 / 55%); backdrop-filter: blur(6px); }

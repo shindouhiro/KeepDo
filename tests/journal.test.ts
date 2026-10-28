@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { getJournalImageType, journalInputSchema, groupJournalEntries } from '../shared/journal.ts'
+import { getJournalImageType, journalInputSchema, groupJournalEntries, getGoalJournalDates } from '../shared/journal.ts'
 import type { GoalJournalEntry } from '../shared/journal.ts'
 import { getCalendarPlans, getGoalsForDate } from '../shared/calendar.ts'
 import type { Goal } from '../src/types/index.ts'
@@ -29,6 +29,8 @@ test('时间线以业务日期为主，同日按实际创建时间和 ID 排序'
   assert.equal(entries[0]!.id, 'b')
 })
 test('已达成目标的日记日期仍在日历保留，未记录日期不额外展示', () => {
+  assert.deepEqual(getGoalJournalDates({}, '__proto__'), [])
+  assert.deepEqual(getGoalJournalDates(JSON.parse('{"__proto__":["2026-10-27"]}'), '__proto__'), ['2026-10-27'])
   const goal: Goal = { id: 'g', title: '写作', category: '成长', type: 'days', targetValue: 1, currentValue: 1, unit: '天', milestones: [], color: 'indigo', createdAt: '2026-10-01' }
   const dates = { g: ['2026-10-27'] }
   assert.deepEqual(getGoalsForDate([goal], '2026-10-27', dates), [goal])
