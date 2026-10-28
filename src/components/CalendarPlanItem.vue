@@ -24,7 +24,7 @@ const kinds = {
       type="button"
       :aria-label="`${date}，${kinds[plan.kind].label}：${plan.title}，${plan.completed ? (plan.kind === 'goal' ? '已达成' : '已完成') : plan.detail}${plan.checkedIn ? '，当天已打卡' : ''}${plan.attention ? `，${plan.attention}` : ''}，查看详情`"
       aria-haspopup="dialog"
-      aria-controls="calendar-day-dialog"
+      :aria-controls="plan.kind === 'goal' ? 'goal-journal-dialog' : 'calendar-day-dialog'"
       class="w-full min-w-0 rounded-lg px-2.5 pt-0.5 pb-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-500"
       @click="emit('inspect')"
     >
@@ -32,6 +32,7 @@ const kinds = {
       <span class="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] leading-4">
         <span class="opacity-65">{{ plan.detail }}</span>
         <span v-if="plan.checkedIn" class="font-medium text-emerald-700 dark:text-emerald-300">已打卡</span>
+        <span v-if="plan.hasJournal" class="font-medium opacity-80">有记录</span>
         <span v-if="plan.kind === 'goal' && plan.completed" class="font-medium opacity-75">已达成</span>
       </span>
       <span v-if="plan.percent !== undefined" class="mt-2 block h-[3px] overflow-hidden rounded-full bg-indigo-200/60 dark:bg-indigo-900/60" aria-hidden="true"><span class="block h-full rounded-full bg-indigo-400/90" :style="{ width: `${plan.percent}%` }"></span></span>

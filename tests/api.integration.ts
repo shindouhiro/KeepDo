@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { emptyAppData } from '../shared/schema.ts'
+import type { GoalJournalEntry, JournalPage } from '../shared/journal.ts'
 
 const origin = process.env.KEEPDO_TEST_ORIGIN || 'http://localhost:8787'
 const local = ['localhost', '127.0.0.1'].includes(new URL(origin).hostname)
@@ -75,6 +76,67 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     assert.equal((await request(`/api/data?user_id=${accounts[0]!.id}`, 'GET', undefined, cookieB)).status, 200)
     const forged = await (await request(`/api/data?user_id=${accounts[0]!.id}`, 'GET', undefined, cookieB)).json() as { data: unknown }
     assert.deepEqual(forged.data, emptyAppData())
+  })
+  await t.test('目标图文日记持久化、编辑、分页与图片权限隔离', async () => {
+    const goalPath = '/api/goals/goal-checkin-test/journal'
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY1sAAAAASUVORK5CYII=', 'base64')
+    const entryId = crypto.randomUUID()
+    const initialInput = { date: '2026-10-27', content: '完成了今天的阅读，保存一张进展照片。', keepImageIds: [] as string[], version: 0, operationId: crypto.randomUUID() }
+    async function saveJournal(id: string, input: typeof initialInput, images: Blob[] = [], cookie = cookieA, customOrigin = origin) {
+      const form = new FormData()
+      form.set('entry', JSON.stringify(input))
+      images.forEach(file => form.append('images', file, 'progress.png'))
+      return fetch(`${origin}${goalPath}/${id}`, { method: 'PUT', headers: { Origin: customOrigin, Cookie: cookie }, body: form })
+    }
+    const saved = await saveJournal(entryId, initialInput, [new Blob([png], { type: 'image/png' })])
+    assert.equal(saved.status, 201, await saved.clone().text())
+    const first = (await saved.json() as { entry: GoalJournalEntry }).entry
+    assert.equal(first.date, initialInput.date)
+    assert.equal(first.images.length, 1)
+    const image = await request(first.images[0]!.url, 'GET', undefined, secondSession)
+    assert.equal(image.status, 200)
+    assert.equal(image.headers.get('content-type'), 'image/png')
+    assert.equal(image.headers.get('x-content-type-options'), 'nosniff')
+    assert.deepEqual(Buffer.from(await image.arrayBuffer()), png)
+    assert.equal((await request(first.images[0]!.url, 'GET', undefined, cookieB)).status, 404)
+    assert.equal((await request(first.images[0]!.url)).status, 401)
+    assert.equal((await request(goalPath, 'GET', undefined, cookieB)).status, 404)
+    assert.equal((await saveJournal(crypto.randomUUID(), initialInput, [], cookieA, 'https://evil.example')).status, 403)
+    assert.equal((await saveJournal(crypto.randomUUID(), { ...initialInput, keepImageIds: [first.images[0]!.id] })).status, 400)
+    assert.equal((await saveJournal(crypto.randomUUID(), initialInput, [new Blob(['<svg onload="alert(1)"></svg>'], { type: 'image/png' })])).status, 415)
+    assert.equal((await saveJournal(crypto.randomUUID(), initialInput, [new Blob([new Uint8Array(400_001)], { type: 'image/png' })])).status, 413)
+    assert.equal((await saveJournal(crypto.randomUUID(), { ...initialInput, content: '' })).status, 400)
+    assert.equal((await saveJournal(crypto.randomUUID(), initialInput, Array(7).fill(new Blob([png], { type: 'image/png' })))).status, 400)
+    const changed = { ...initialInput, content: '补充今天的收获与思考。', keepImageIds: first.images.map(item => item.id), version: 1, operationId: crypto.randomUUID() }
+    const edit = await saveJournal(entryId, changed)
+    assert.equal(edit.status, 200, await edit.clone().text())
+    const edited = (await edit.json() as { entry: GoalJournalEntry }).entry
+    assert.equal(edited.version, 2)
+    assert.deepEqual(edited.images, first.images)
+    const retry = await saveJournal(entryId, changed)
+    assert.equal(retry.status, 200)
+    assert.equal((await retry.json() as { entry: GoalJournalEntry }).entry.version, 2)
+    assert.equal((await saveJournal(entryId, { ...changed, operationId: crypto.randomUUID() })).status, 409)
+    const removed = await saveJournal(entryId, { ...changed, version: 2, keepImageIds: [], operationId: crypto.randomUUID() })
+    assert.equal(removed.status, 200, await removed.clone().text())
+    assert.equal((await removed.json() as { entry: GoalJournalEntry }).entry.images.length, 0)
+    assert.equal((await request(first.images[0]!.url, 'GET', undefined, cookieA)).status, 404)
+    for (let index = 0; index < 21; index++) {
+      const response = await saveJournal(crypto.randomUUID(), { ...initialInput, content: `时间线记录 ${index}`, operationId: crypto.randomUUID() })
+      assert.equal(response.status, 201, await response.clone().text())
+    }
+    const page = await (await request(goalPath, 'GET', undefined, secondSession)).json() as JournalPage
+    assert.equal(page.entries.length, 20)
+    assert.ok(page.nextCursor)
+    const next = await (await request(`${goalPath}?cursor=${encodeURIComponent(page.nextCursor!)}`, 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(next.entries.length, 2)
+    assert.equal(new Set([...page.entries, ...next.entries].map(item => item.id)).size, 22)
+    assert.equal(next.nextCursor, null)
+    assert.equal((await request(`${goalPath}?cursor=invalid`, 'GET', undefined, cookieA)).status, 400)
+    const summary = await (await request('/api/journal/summary', 'GET', undefined, cookieA)).json() as { dates: Record<string, string[]> }
+    assert.deepEqual(summary.dates['goal-checkin-test'], ['2026-10-27'])
+    const otherSummary = await (await request('/api/journal/summary', 'GET', undefined, cookieB)).json() as { dates: Record<string, string[]> }
+    assert.deepEqual(otherSummary.dates, {})
   })
   await t.test('退出使原会话失效', async () => {
     assert.equal((await request('/api/auth/logout', 'POST', {}, cookieA)).status, 200)

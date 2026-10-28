@@ -3,16 +3,18 @@ import { computed, shallowRef } from 'vue'
 import { CalendarDays, ChevronLeft, ChevronRight, Flame, ListTodo, Plus, Target } from '@lucide/vue'
 import type { Goal, Habit, Todo } from '../types'
 import type { CalendarView } from '../../shared/calendar'
+import type { JournalDates } from '../../shared/journal'
 import { getCalendarDates, getCalendarPlans, getDailyActionSummary } from '../../shared/calendar'
 import { addDays, getTodayString } from '../utils/date'
 import CalendarPlanItem from './CalendarPlanItem.vue'
 
-const props = defineProps<{ date: string; goals: Goal[]; habits: Habit[]; todos: Todo[] }>()
+const props = withDefaults(defineProps<{ date: string; goals: Goal[]; habits: Habit[]; todos: Todo[]; journalDates?: JournalDates }>(), { journalDates: () => ({}) })
 const emit = defineEmits<{
   'select-date': [date: string]
   'inspect-date': [date: string]
   'new-todo': [date: string]
   'check-in-goal': [goalId: string, date: string]
+  'inspect-goal': [goalId: string, date: string]
 }>()
 const view = shallowRef<CalendarView>('week')
 const today = getTodayString()
@@ -22,7 +24,7 @@ const days = computed(() => getCalendarDates(props.date, view.value).map((date, 
   day: Number(date.slice(-2)),
   weekday: weekdays[index % 7],
   inMonth: date.slice(0, 7) === props.date.slice(0, 7),
-  plans: getCalendarPlans(props.goals, props.habits, props.todos, date),
+  plans: getCalendarPlans(props.goals, props.habits, props.todos, date, props.journalDates),
   summary: getDailyActionSummary(props.todos, props.habits, date),
 })))
 const heading = computed(() => `${Number(props.date.slice(0, 4))} 年 ${Number(props.date.slice(5, 7))} 月`)
@@ -111,7 +113,7 @@ function pickDate(event: Event) {
           </button>
           <p v-if="day.summary.total" class="mb-3 px-1 text-[10px] text-slate-500 dark:text-slate-400">行动 {{ day.summary.completed }}/{{ day.summary.total }} 已完成</p>
           <div v-if="day.plans.length" class="space-y-2">
-            <CalendarPlanItem v-for="plan in day.plans" :key="plan.id" :plan="plan" :date="day.date" @inspect="emit('inspect-date', day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
+            <CalendarPlanItem v-for="plan in day.plans" :key="plan.id" :plan="plan" :date="day.date" @inspect="plan.kind === 'goal' ? emit('inspect-goal', plan.sourceId, day.date) : emit('inspect-date', day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
           </div>
           <div v-else class="flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200/80 text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
             <span>留一点自由时间</span>

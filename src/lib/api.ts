@@ -4,11 +4,13 @@ export class ApiError extends Error {
 }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response
+  const headers = new Headers(options.headers)
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   try {
     response = await fetch(path, {
       ...options,
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers,
       signal: options.signal ?? AbortSignal.timeout(20_000),
     })
   } catch {

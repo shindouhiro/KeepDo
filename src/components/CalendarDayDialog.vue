@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { X, ChevronLeft, ChevronRight, CalendarDays, Check, Flame, ListTodo, Plus } from '@lucide/vue'
 import type { Goal, Todo } from '../types'
 import { useKeepDoStore } from '../stores/keepdo'
+import { useJournalStore } from '../stores/journal'
 import { useNativeDialog } from '../composables/useNativeDialog'
 import { addDays, formatDisplayDate } from '../utils/date'
 import { getDailyActionSummary, getGoalsForDate, getHabitsForDate } from '../../shared/calendar'
@@ -17,10 +18,12 @@ const emit = defineEmits<{
   'edit-todo': [todo: Todo]
   'new-todo': []
   'show-goals': []
+  'open-journal': [goalId: string, date: string]
 }>()
 const store = useKeepDoStore()
+const journalIndex = useJournalStore()
 const { handleClose, handleBackdrop } = useNativeDialog('calendarDayDialog', () => props.isOpen, () => emit('close'))
-const goals = computed(() => getGoalsForDate(store.goals, props.date))
+const goals = computed(() => getGoalsForDate(store.goals, props.date, journalIndex.dates))
 const habits = computed(() => getHabitsForDate(store.habits, props.date))
 const todos = computed(() => store.todos.filter(todo => todo.date === props.date))
 const summary = computed(() => getDailyActionSummary(store.todos, store.habits, props.date))
@@ -53,7 +56,7 @@ function selectDate(event: Event) {
       </header>
       <div class="min-h-0 space-y-6 overflow-y-auto overscroll-contain p-4 sm:p-5">
         <p v-if="store.syncError" role="alert" class="rounded-xl bg-amber-50 p-3 text-xs leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{{ store.syncError }}。未保存时请保留页面，并在设置中导出备份。</p>
-        <CalendarGoals v-if="goals.length" :goals="goals" :date="date" detailed id-prefix="calendar-detail" @edit-goal="emit('edit-goal', $event)" @show-goals="emit('show-goals')" @check-in-goal="store.toggleGoalDay" />
+        <CalendarGoals v-if="goals.length" :goals="goals" :date="date" detailed id-prefix="calendar-detail" @edit-goal="emit('edit-goal', $event)" @show-goals="emit('show-goals')" @check-in-goal="store.toggleGoalDay" @open-journal="(goalId, date) => emit('open-journal', goalId, date)" />
         <p v-else class="rounded-2xl border border-dashed border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-800">这一天没有关联的长期目标。</p>
         <section aria-labelledby="calendar-day-habits-heading" class="space-y-3">
           <h3 id="calendar-day-habits-heading" class="flex items-center gap-2 text-sm font-bold"><Flame class="h-4 w-4 text-amber-500" />当日习惯 <span class="font-normal text-slate-400">{{ habits.length }} 个</span></h3>

@@ -9,7 +9,7 @@ const props = withDefaults(defineProps<{ goals: Goal[]; date: string; detailed?:
   detailed: false,
   idPrefix: 'calendar',
 })
-const emit = defineEmits<{ 'edit-goal': [goal: Goal]; 'show-goals': []; 'check-in-goal': [goalId: string, date: string] }>()
+const emit = defineEmits<{ 'edit-goal': [goal: Goal]; 'show-goals': []; 'check-in-goal': [goalId: string, date: string]; 'open-journal': [goalId: string, date: string] }>()
 const entries = computed(() => props.goals.map(goal => ({
   goal,
   percent: getGoalProgressPercent(goal),
@@ -55,7 +55,7 @@ const statusClasses = {
         </div>
         <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
           <span class="flex items-center gap-1 text-slate-500 dark:text-slate-400"><CalendarClock class="h-3.5 w-3.5" />{{ entry.goal.deadline ? `截止 ${entry.goal.deadline}` : '未设截止日' }}</span>
-          <button :id="`${idPrefix}-edit-goal-${entry.goal.id}`" type="button" :aria-label="`编辑目标：${entry.goal.title}`" class="rounded px-1 py-0.5 font-semibold text-indigo-600 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400" @click="emit('edit-goal', entry.goal)">编辑目标</button>
+          <div class="flex items-center gap-3"><button :id="`${idPrefix}-journal-${entry.goal.id}`" type="button" :aria-label="`记录与时间线：${entry.goal.title}`" aria-haspopup="dialog" aria-controls="goal-journal-dialog" class="rounded px-1 py-0.5 font-medium text-indigo-600 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400" @click="emit('open-journal', entry.goal.id, date)">记录 / 时间线</button><button :id="`${idPrefix}-edit-goal-${entry.goal.id}`" type="button" :aria-label="`编辑目标：${entry.goal.title}`" class="rounded px-1 py-0.5 font-medium text-slate-400 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500" @click="emit('edit-goal', entry.goal)">编辑目标</button></div>
         </div>
         <div v-if="detailed" class="mt-3 border-t border-slate-100 pt-3 text-[11px] leading-6 text-slate-500 dark:border-slate-800 dark:text-slate-400">
           <p>{{ entry.goal.category }} · 创建于 {{ entry.goal.createdAt }}</p>

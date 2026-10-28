@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
+import { useJournalStore } from '../stores/journal'
 import {
   calculateHabitStreak
 } from '../utils/date'
@@ -21,6 +22,17 @@ import {
 } from '@lucide/vue'
 
 const store = useKeepDoStore()
+const journalIndex = useJournalStore()
+const GoalJournalDialog = defineAsyncComponent(() => import('./journal/GoalJournalDialog.vue'))
+const journalGoalId = ref<string | null>(null)
+const journalGoal = computed(() => store.goals.find(goal => goal.id === journalGoalId.value) || null)
+function openGoalJournal(goalId: string, date: string) {
+  isDayDetailsOpen.value = false
+  store.selectedDate = date
+  journalGoalId.value = goalId
+}
+onMounted(() => { void journalIndex.refresh() })
+onBeforeUnmount(() => journalIndex.clear())
 
 const emit = defineEmits<{
   (e: 'new-habit'): void
@@ -78,7 +90,7 @@ function addCalendarTodo(date: string) {
 }
 
 const selectedHabits = computed(() => getHabitsForDate(store.habits, store.selectedDate))
-const selectedGoals = computed(() => getGoalsForDate(store.goals, store.selectedDate))
+const selectedGoals = computed(() => getGoalsForDate(store.goals, store.selectedDate, journalIndex.dates))
 
 // 过滤后的待办列表
 const filteredTodos = computed(() => {
@@ -102,13 +114,17 @@ const completedHabitsCount = computed(() => {
       :goals="store.goals"
       :habits="store.habits"
       :todos="store.todos"
+      :journal-dates="journalIndex.dates"
       @select-date="store.selectedDate = $event"
       @inspect-date="selectDate"
       @new-todo="addCalendarTodo"
       @check-in-goal="store.toggleGoalDay"
+      @inspect-goal="openGoalJournal"
     />
 
-    <CalendarGoals :goals="selectedGoals" :date="store.selectedDate" @edit-goal="$emit('edit-goal', $event)" @show-goals="store.activeTab = 'goals'" @check-in-goal="store.toggleGoalDay" />
+    <p v-if="journalIndex.error" class="text-xs text-amber-700 dark:text-amber-300">历史日记标记暂未加载。<button id="journal-index-retry" type="button" class="ml-1 underline" @click="journalIndex.refresh">重新加载</button></p>
+    <CalendarGoals :goals="selectedGoals" :date="store.selectedDate" @edit-goal="$emit('edit-goal', $event)" @show-goals="store.activeTab = 'goals'" @check-in-goal="store.toggleGoalDay" @open-journal="openGoalJournal" />
+    <GoalJournalDialog v-if="journalGoal" :is-open="Boolean(journalGoal)" :goal="journalGoal" :date="store.selectedDate" @close="journalGoalId = null" />
 
     <!-- 模块一：每日习惯打卡 (Tactile Habits) -->
     <section class="space-y-3">
@@ -411,6 +427,7 @@ const completedHabitsCount = computed(() => {
       @edit-todo="openTodoEditor"
       @new-todo="openTodoEditor(null)"
       @show-goals="showGoalsFromDetails"
+      @open-journal="openGoalJournal"
     />
     <TodoModal :is-open="isTodoModalOpen" :todo="todoToEdit" :date="store.selectedDate" @close="isTodoModalOpen = false" />
   </div>

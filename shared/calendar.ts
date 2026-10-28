@@ -1,4 +1,6 @@
 import type { Goal, Habit, Todo } from '../src/types/index.ts'
+import type { JournalDates } from './journal.ts'
+import { getGoalJournalDates } from './journal.ts'
 
 export type CalendarView = 'week' | 'month'
 export interface CalendarPlan {
@@ -11,6 +13,7 @@ export interface CalendarPlan {
   attention?: string
   percent?: number
   checkedIn?: boolean
+  hasJournal?: boolean
 }
 
 export function getCalendarDates(date: string, view: CalendarView): string[] {
@@ -30,12 +33,13 @@ export function getCalendarDates(date: string, view: CalendarView): string[] {
   })
 }
 
-export function getCalendarPlans(goals: Goal[], habits: Habit[], todos: Todo[], date: string): CalendarPlan[] {
-  const goalPlans: CalendarPlan[] = getGoalsForDate(goals, date).map(goal => {
+export function getCalendarPlans(goals: Goal[], habits: Habit[], todos: Todo[], date: string, journalDates: JournalDates = {}): CalendarPlan[] {
+  const goalPlans: CalendarPlan[] = getGoalsForDate(goals, date, journalDates).map(goal => {
     const status = getGoalDateStatus(goal, date)
     return {
       id: `goal-${goal.id}`, sourceId: goal.id, kind: 'goal', title: goal.title, completed: isGoalComplete(goal),
       checkedIn: goal.checkIns?.[date] === true,
+      hasJournal: getGoalJournalDates(journalDates, goal.id).includes(date),
       detail: `累计 ${getGoalProgressPercent(goal)}%`, percent: getGoalProgressPercent(goal),
       attention: status === 'due' ? '今日截止' : status === 'overdue' ? '已逾期' : undefined,
     }
@@ -82,9 +86,9 @@ export function getGoalProgressPercent(goal: Goal): number {
   return total > 0 ? Math.max(0, Math.min(99, Math.round(done / total * 100))) : 0
 }
 
-export function getGoalsForDate(goals: Goal[], date: string) {
+export function getGoalsForDate(goals: Goal[], date: string, journalDates: JournalDates = {}) {
   // 达成后仍保留打卡日期与截止日；未完成目标从创建日起持续显示。
-  return goals.filter(goal => goal.checkIns?.[date] === true || goal.deadline === date || (goal.createdAt <= date && !isGoalComplete(goal)))
+  return goals.filter(goal => goal.checkIns?.[date] === true || getGoalJournalDates(journalDates, goal.id).includes(date) || goal.deadline === date || (goal.createdAt <= date && !isGoalComplete(goal)))
 }
 
 export function getGoalDateStatus(goal: Goal, date: string): 'completed' | 'due' | 'overdue' | 'active' {
