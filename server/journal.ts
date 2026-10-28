@@ -90,8 +90,36 @@ async function saveEntry(request: Request, env: Env, user: User, subjectType: Jo
   return json({ entry: (await entriesWithImages(env, user.id, [saved]))[0] }, !existing && results[0]?.meta.changes ? 201 : 200)
 }
 
+async function listEntries(env: Env, user: User, url: URL, subject?: { type: JournalSubjectType; id: string }) {
+  const conditions = ['user_id = ?']
+  const values: string[] = [user.id]
+  if (subject) {
+    conditions.push('subject_type = ?', 'goal_id = ?')
+    values.push(subject.type, subject.id)
+  } else {
+    const filter = z.enum(['all', 'goal', 'habit']).safeParse(url.searchParams.get('type') ?? 'all')
+    if (!filter.success) throw new HttpError(400, '记录类型不正确')
+    if (filter.data !== 'all') { conditions.push('subject_type = ?'); values.push(filter.data) }
+  }
+  if (url.searchParams.has('cursor')) {
+    let cursor: [string, string, string]
+    try { cursor = z.tuple([z.iso.date(), z.iso.datetime(), z.uuid()]).parse(JSON.parse(atob(url.searchParams.get('cursor')!))) }
+    catch { throw new HttpError(400, '时间线分页位置不正确') }
+    conditions.push('(date, created_at, id) < (?, ?, ?)')
+    values.push(...cursor)
+  }
+  const rows = await env.DB.prepare(`SELECT * FROM goal_journal_entries WHERE ${conditions.join(' AND ')} ORDER BY date DESC, created_at DESC, id DESC LIMIT 21`).bind(...values).all<EntryRow>()
+  const page = rows.results.slice(0, 20)
+  const last = page.at(-1)
+  return json({ entries: await entriesWithImages(env, user.id, page), nextCursor: rows.results.length > 20 && last ? btoa(JSON.stringify([last.date, last.created_at, last.id])) : null })
+}
+
 export async function handleJournal(request: Request, env: Env, user: User, path: string): Promise<Response | null> {
   const url = new URL(request.url)
+  if (path === '/api/journal') {
+    if (request.method !== 'GET') throw new HttpError(405, '不支持此请求方法')
+    return listEntries(env, user, url)
+  }
   if (path === '/api/journal/summary' && request.method === 'GET') {
     const dates = await env.DB.prepare('SELECT DISTINCT subject_type, goal_id, date FROM goal_journal_entries WHERE user_id = ? ORDER BY date DESC').bind(user.id).all<{ subject_type: JournalSubjectType; goal_id: string; date: string }>()
     const result: Record<string, string[]> = Object.create(null)
@@ -116,16 +144,7 @@ export async function handleJournal(request: Request, env: Env, user: User, path
   if (match[3] && request.method === 'PUT') return saveEntry(request, env, user, subjectType, subjectId, match[3])
   if (!match[3] && request.method === 'GET') {
     await requireSubject(env, user.id, subjectType, subjectId)
-    let cursor: [string, string, string] | undefined
-    if (url.searchParams.has('cursor')) {
-      try { cursor = z.tuple([z.iso.date(), z.iso.datetime(), z.uuid()]).parse(JSON.parse(atob(url.searchParams.get('cursor')!))) }
-      catch { throw new HttpError(400, '时间线分页位置不正确') }
-    }
-    const rows = await env.DB.prepare(`SELECT * FROM goal_journal_entries WHERE user_id = ? AND subject_type = ? AND goal_id = ? ${cursor ? 'AND (date, created_at, id) < (?, ?, ?)' : ''} ORDER BY date DESC, created_at DESC, id DESC LIMIT 21`)
-      .bind(user.id, subjectType, subjectId, ...(cursor || [])).all<EntryRow>()
-    const page = rows.results.slice(0, 20)
-    const last = page.at(-1)
-    return json({ entries: await entriesWithImages(env, user.id, page), nextCursor: rows.results.length > 20 && last ? btoa(JSON.stringify([last.date, last.created_at, last.id])) : null })
+    return listEntries(env, user, url, { type: subjectType, id: subjectId })
   }
   throw new HttpError(405, '不支持此请求方法')
 }

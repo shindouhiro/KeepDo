@@ -273,7 +273,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     hasLegacyData.value = false
   }
 
-  const activeTab = ref<'today' | 'goals' | 'stats'>('today')
+  const activeTab = ref<'today' | 'goals' | 'records' | 'stats'>('today')
   const selectedDate = ref<string>(getTodayString())
   const savedDarkMode = localStorage.getItem('keepdo_dark_mode')
   const initialDarkMode = savedDarkMode !== null

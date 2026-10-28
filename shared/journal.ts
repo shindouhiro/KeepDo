@@ -13,6 +13,7 @@ export const journalInputSchema = z.object({
 })
 export interface JournalImage { id: string; url: string }
 export type JournalSubjectType = 'goal' | 'habit'
+export type JournalFilter = 'all' | JournalSubjectType
 export interface JournalEntry {
   id: string
   subjectType: JournalSubjectType

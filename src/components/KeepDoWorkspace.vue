@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
 import type { Goal } from '../types'
 import Navbar from './Navbar.vue'
@@ -10,6 +10,8 @@ import StatsView from './StatsView.vue'
 import GoalModal from './GoalModal.vue'
 import HabitModal from './HabitModal.vue'
 import SettingsModal from './SettingsModal.vue'
+
+const RecordsView = defineAsyncComponent(() => import('./RecordsView.vue'))
 
 const store = useKeepDoStore()
 function warnBeforeUnload(event: BeforeUnloadEvent) {
@@ -85,7 +87,9 @@ function openEditHabitModal(habitId: string) {
           @edit-goal="openEditGoalModal"
         />
 
-        <!-- 页面 3：统计复盘 -->
+        <RecordsView v-else-if="store.activeTab === 'records'" />
+
+        <!-- 页面 4：统计复盘 -->
         <StatsView
           v-else-if="store.activeTab === 'stats'"
         />

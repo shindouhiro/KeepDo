@@ -203,6 +203,38 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     assert.deepEqual(after.data.habits, before.data.habits)
     assert.deepEqual(after.data.goals, before.data.goals)
   })
+  await t.test('记录总时间线支持跨主体排序、筛选和分页，且始终按账号隔离', async () => {
+    assert.equal((await request('/api/journal')).status, 401)
+    assert.equal((await request('/api/journal', 'POST', {}, cookieA)).status, 405)
+    assert.equal((await request('/api/journal?type=unknown', 'GET', undefined, cookieA)).status, 400)
+    assert.equal((await request('/api/journal?cursor=invalid', 'GET', undefined, cookieA)).status, 400)
+    const page = await (await request('/api/journal', 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(page.entries.length, 20)
+    assert.equal(page.entries[0]!.subjectType, 'habit')
+    assert.equal(page.entries[0]!.date, '2026-10-28')
+    assert.ok(page.nextCursor)
+    const next = await (await request(`/api/journal?cursor=${encodeURIComponent(page.nextCursor!)}`, 'GET', undefined, secondSession)).json() as JournalPage
+    assert.equal(next.entries.length, 4)
+    assert.equal(next.nextCursor, null)
+    const combined = [...page.entries, ...next.entries]
+    assert.equal(new Set(combined.map(entry => entry.id)).size, 24)
+    const sorted = [...combined].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+    assert.deepEqual(combined, sorted)
+    assert.ok(combined.some(entry => entry.images.length > 0))
+    const habits = await (await request('/api/journal?type=habit', 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(habits.entries.length, 1)
+    assert.equal(habits.entries[0]!.subjectType, 'habit')
+    assert.equal(habits.nextCursor, null)
+    const goals = await (await request('/api/journal?type=goal', 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(goals.entries.length, 20)
+    assert.ok(goals.entries.every(entry => entry.subjectType === 'goal'))
+    const moreGoals = await (await request(`/api/journal?type=goal&cursor=${encodeURIComponent(goals.nextCursor!)}`, 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(moreGoals.entries.length, 3)
+    const other = await (await request(`/api/journal?user_id=${accounts[0]!.id}`, 'GET', undefined, cookieB)).json() as JournalPage
+    assert.deepEqual(other, { entries: [], nextCursor: null })
+    const otherFiltered = await (await request('/api/journal?type=habit', 'GET', undefined, cookieB)).json() as JournalPage
+    assert.deepEqual(otherFiltered.entries, [])
+  })
   await t.test('退出使原会话失效', async () => {
     assert.equal((await request('/api/auth/logout', 'POST', {}, cookieA)).status, 200)
     assert.equal((await request('/api/data', 'GET', undefined, cookieA)).status, 401)

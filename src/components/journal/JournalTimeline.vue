@@ -4,7 +4,8 @@ import { Check, Pencil, Clock3, Images } from '@lucide/vue'
 import type { JournalEntry, JournalImage } from '../../../shared/journal'
 import { groupJournalEntries } from '../../../shared/journal'
 
-const props = withDefaults(defineProps<{ entries: JournalEntry[]; checkIns?: Record<string, boolean>; selectedDate: string; subjectLabel?: string }>(), { subjectLabel: '目标' })
+const props = withDefaults(defineProps<{ entries: JournalEntry[]; checkIns?: Record<string, boolean>; selectedDate?: string; subjectLabel?: string; editable?: boolean }>(), { selectedDate: '', subjectLabel: '目标', editable: true })
+defineSlots<{ source?(props: { entry: JournalEntry }): unknown }>()
 const emit = defineEmits<{ edit: [entry: JournalEntry]; preview: [image: JournalImage] }>()
 const groups = computed(() => groupJournalEntries(props.entries))
 function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) }
@@ -27,6 +28,7 @@ function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-
       </div>
       <div class="space-y-3">
         <article v-for="entry in group.records" :key="entry.id" :id="`journal-entry-${entry.id}`" class="overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-3.5 dark:border-slate-800 dark:bg-[#141b28]">
+          <div v-if="$slots.source" class="mb-3"><slot name="source" :entry="entry" /></div>
           <p v-if="entry.content" class="text-sm leading-7 whitespace-pre-wrap [overflow-wrap:anywhere] text-slate-600 dark:text-slate-300">{{ entry.content }}</p>
           <div v-if="entry.images.length" class="grid gap-2" :class="[entry.images.length === 1 ? 'max-w-xs grid-cols-1' : entry.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3', entry.content ? 'mt-3' : '']">
             <button v-for="(image, index) in entry.images" :id="`journal-preview-${image.id}`" :key="image.id" type="button" :aria-label="`查看 ${entry.date} 的第 ${index + 1} 张图片`" aria-haspopup="dialog" aria-controls="journal-image-viewer" class="group relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:bg-slate-900" @click="emit('preview', image)">
@@ -36,7 +38,7 @@ function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-
           </div>
           <div class="mt-3 flex items-center justify-between gap-2 text-[10px] text-slate-400">
             <span>{{ time(entry.createdAt) }}<span v-if="entry.version > 1"> · 已编辑</span></span>
-            <button :id="`journal-edit-${entry.id}`" type="button" :aria-label="`编辑 ${entry.date} ${time(entry.createdAt)} 的记录`" class="inline-flex min-h-7 items-center gap-1 rounded-md px-1.5 hover:bg-slate-50 hover:text-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-400 dark:hover:bg-slate-800" @click="emit('edit', entry)"><Pencil class="h-3 w-3" />编辑</button>
+            <button v-if="editable" :id="`journal-edit-${entry.id}`" type="button" :aria-label="`编辑 ${entry.date} ${time(entry.createdAt)} 的记录`" class="inline-flex min-h-7 items-center gap-1 rounded-md px-1.5 hover:bg-slate-50 hover:text-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-400 dark:hover:bg-slate-800" @click="emit('edit', entry)"><Pencil class="h-3 w-3" />编辑</button>
           </div>
         </article>
       </div>
