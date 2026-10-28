@@ -122,6 +122,8 @@ function handleSave() {
           </h3>
         </div>
         <button
+          id="goal-close"
+          aria-label="关闭弹窗"
           @click="$emit('close')"
           class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
         >
@@ -132,23 +134,25 @@ function handleSave() {
       <form @submit.prevent="handleSave" class="mt-4 space-y-4">
         <!-- 目标名称 -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">目标名称</label>
+          <label for="goal-title" class="block text-xs font-bold text-slate-700 dark:text-slate-300">目标名称</label>
           <input
+            id="goal-title"
             v-model="title"
             required
             type="text"
             placeholder="例如：今年读完 12 本书、坚持复盘 100 天"
-            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
           />
         </div>
 
         <!-- 目标分类与目标类型 -->
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">所属分类</label>
+            <label for="goal-category" class="block text-xs font-bold text-slate-700 dark:text-slate-300">所属分类</label>
             <select
+              id="goal-category"
               v-model="category"
-              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
             >
               <option v-for="cat in store.categories.filter(c => c !== '全部')" :key="cat" :value="cat">
                 {{ cat }}
@@ -157,10 +161,11 @@ function handleSave() {
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">衡量模式</label>
+            <label for="goal-type" class="block text-xs font-bold text-slate-700 dark:text-slate-300">衡量模式</label>
             <select
+              id="goal-type"
               v-model="type"
-              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
             >
               <option value="days">📅 天数累计型</option>
               <option value="number">🔢 数值量化型</option>
@@ -172,32 +177,35 @@ function handleSave() {
         <!-- 天数或数值量化 -->
         <div v-if="type !== 'milestones'" class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">目标量化数值</label>
+            <label for="goal-target-value" class="block text-xs font-bold text-slate-700 dark:text-slate-300">目标量化数值</label>
             <input
+              id="goal-target-value"
               v-model.number="targetValue"
               type="number"
               min="1"
               required
-              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
             />
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">计数单位</label>
+            <label for="goal-unit" class="block text-xs font-bold text-slate-700 dark:text-slate-300">计数单位</label>
             <input
+              id="goal-unit"
               v-model="unit"
               type="text"
               placeholder="天 / 本 / 公里 / 页"
               required
-              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
             />
           </div>
         </div>
 
         <!-- 里程碑型列表添加 -->
         <div v-if="type === 'milestones'" class="space-y-2">
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">关键里程碑 Checklist</label>
+          <label for="goal-milestone-title" class="block text-xs font-bold text-slate-700 dark:text-slate-300">关键里程碑 Checklist</label>
           <div class="flex gap-2">
             <input
+              id="goal-milestone-title"
               v-model="newMilestoneText"
               type="text"
               placeholder="添加一个具体阶段目标..."
@@ -206,6 +214,7 @@ function handleSave() {
             />
             <button
               type="button"
+              id="goal-add-milestone"
               @click="addMilestone"
               class="rounded-2xl bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200 active:scale-95 dark:bg-slate-800 dark:text-slate-200"
             >
@@ -222,6 +231,8 @@ function handleSave() {
               <span class="truncate font-medium text-slate-700 dark:text-slate-300">{{ idx + 1 }}. {{ ms.title }}</span>
               <button
                 type="button"
+                :id="`goal-remove-milestone-${ms.id}`"
+                aria-label="删除里程碑"
                 @click="removeMilestone(idx)"
                 class="text-slate-400 hover:text-rose-500"
               >
@@ -233,28 +244,31 @@ function handleSave() {
 
         <!-- 截止日期 -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">计划完成截止日期（可选）</label>
+          <label for="goal-deadline" class="block text-xs font-bold text-slate-700 dark:text-slate-300">计划完成截止日期（可选）</label>
           <input
+            id="goal-deadline"
             v-model="deadline"
             type="date"
-            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
           />
         </div>
 
         <!-- 目标描述 / 初衷 -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">初衷与说明（可选）</label>
+          <label for="goal-description" class="block text-xs font-bold text-slate-700 dark:text-slate-300">初衷与说明（可选）</label>
           <textarea
+            id="goal-description"
             v-model="description"
             rows="2"
             placeholder="写下你为什么想要达成这个目标..."
-            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
           ></textarea>
         </div>
 
         <!-- 底部按钮 -->
         <div class="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
           <button
+            id="goal-cancel"
             type="button"
             @click="$emit('close')"
             class="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -262,6 +276,7 @@ function handleSave() {
             取消
           </button>
           <button
+            id="goal-save"
             type="submit"
             class="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-500 active:scale-95"
           >

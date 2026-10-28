@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
 import { getDaysRemaining } from '../utils/date'
+import { getGoalProgressPercent } from '../../shared/calendar'
 import type { Goal } from '../types'
 import {
   Target,
@@ -29,16 +30,6 @@ const filteredGoals = computed(() => {
   }
   return store.goals.filter(g => g.category === selectedCategory.value)
 })
-
-function getGoalProgressPercent(goal: Goal): number {
-  if (goal.type === 'milestones') {
-    if (!goal.milestones.length) return 0
-    const done = goal.milestones.filter(m => m.completed).length
-    return Math.min(100, Math.round((done / goal.milestones.length) * 100))
-  }
-  if (!goal.targetValue) return 0
-  return Math.min(100, Math.round((goal.currentValue / goal.targetValue) * 100))
-}
 
 function getLinkedHabitsCount(goalId: string): number {
   return store.habits.filter(h => h.goalId === goalId).length

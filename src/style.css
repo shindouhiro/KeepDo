@@ -4,8 +4,13 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  }
+
+  :root.dark {
+    color-scheme: dark;
   }
 
   body {

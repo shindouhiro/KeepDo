@@ -3,6 +3,10 @@ import { ref, computed } from 'vue'
 import type { Goal, Habit, Todo, AppData } from '../types'
 import { getTodayString, addDays } from '../utils/date'
 import { triggerCelebration } from '../utils/confetti'
+import { api, ApiError } from '../lib/api'
+import { appDataSchema, emptyAppData } from '../../shared/schema'
+import { getDailyActionSummary } from '../../shared/calendar'
+import { getGoalCheckInUpdate, isGoalDayCounted } from '../../shared/goal-checkins'
 
 const STORAGE_KEY = 'keepdo_app_data_v1'
 
@@ -149,14 +153,125 @@ function getInitialSampleData(): AppData {
 }
 
 export const useKeepDoStore = defineStore('keepdo', () => {
-  // 从 localStorage 加载
-  const rawData = localStorage.getItem(STORAGE_KEY)
-  const initialData: AppData = rawData ? JSON.parse(rawData) : getInitialSampleData()
+  // 业务数据只在登录后从数据库加载，旧本地数据等待用户主动导入。
+  const initialData = emptyAppData()
+  const goals = ref<Goal[]>(initialData.goals)
+  const habits = ref<Habit[]>(initialData.habits)
+  const todos = ref<Todo[]>(initialData.todos)
+  const categories = ref<string[]>(initialData.categories)
+  const isReady = ref(false)
+  const isLoading = ref(false)
+  const loadError = ref('')
+  const syncState = ref<'saved' | 'saving' | 'error' | 'conflict'>('saved')
+  const syncError = ref('')
+  const sessionExpired = ref(false)
+  const hasLegacyData = ref(Boolean(localStorage.getItem(STORAGE_KEY)))
+  const version = ref(0)
+  const editSequence = ref(0)
+  const savedSequence = ref(0)
+  const hasUnsavedChanges = computed(() => editSequence.value !== savedSequence.value)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let inFlight: Promise<void> | null = null
+  let epoch = 0
 
-  const goals = ref<Goal[]>(initialData.goals || [])
-  const habits = ref<Habit[]>(initialData.habits || [])
-  const todos = ref<Todo[]>(initialData.todos || [])
-  const categories = ref<string[]>(initialData.categories || DEFAULT_CATEGORIES)
+  function snapshot(): AppData {
+    return { goals: goals.value, habits: habits.value, todos: todos.value, categories: categories.value }
+  }
+  function applyData(data: AppData) {
+    goals.value = data.goals
+    habits.value = data.habits
+    todos.value = data.todos
+    categories.value = data.categories
+  }
+  async function loadData() {
+    if (hasUnsavedChanges.value) throw new Error('请先保存或导出未保存的修改')
+    const requestEpoch = ++epoch
+    isLoading.value = true
+    loadError.value = ''
+    try {
+      const result = await api<{ data: AppData; version: number }>('/api/data')
+      const parsed = appDataSchema.parse(result.data)
+      if (epoch !== requestEpoch || hasUnsavedChanges.value) return
+      applyData(parsed)
+      version.value = result.version
+      editSequence.value = 0
+      savedSequence.value = 0
+      syncState.value = 'saved'
+      syncError.value = ''
+      sessionExpired.value = false
+      isReady.value = true
+    } catch (cause) {
+      if (epoch !== requestEpoch) return
+      loadError.value = cause instanceof Error ? cause.message : '账号数据加载失败'
+      syncError.value = loadError.value
+      syncState.value = 'error'
+      sessionExpired.value = cause instanceof ApiError && cause.status === 401
+    } finally { if (epoch === requestEpoch) isLoading.value = false }
+  }
+  async function flushSync(): Promise<void> {
+    if (timer) clearTimeout(timer)
+    if (inFlight) return inFlight
+    if (!hasUnsavedChanges.value) return
+    if (syncState.value === 'conflict') throw new Error(syncError.value)
+    const requestEpoch = epoch
+    inFlight = (async () => {
+      syncState.value = 'saving'
+      syncError.value = ''
+      try {
+        while (hasUnsavedChanges.value && requestEpoch === epoch) {
+          const sequence = editSequence.value
+          const body = JSON.stringify({ data: snapshot(), version: version.value })
+          const result = await api<{ version: number }>('/api/data', { method: 'PUT', body })
+          if (epoch !== requestEpoch) return
+          version.value = result.version
+          savedSequence.value = sequence
+        }
+        if (epoch === requestEpoch) syncState.value = 'saved'
+      } catch (cause) {
+        if (epoch !== requestEpoch) return
+        syncError.value = cause instanceof Error ? cause.message : '保存失败，请重试'
+        syncState.value = cause instanceof ApiError && cause.status === 409 ? 'conflict' : 'error'
+        sessionExpired.value = cause instanceof ApiError && cause.status === 401
+        throw cause
+      }
+    })()
+    try { await inFlight } finally { inFlight = null }
+  }
+  function scheduleSave() {
+    if (!isReady.value) return
+    editSequence.value += 1
+    if (syncState.value === 'conflict') return
+    syncState.value = 'saving'
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => { void flushSync().catch(() => {}) }, 400)
+  }
+  async function reloadData() {
+    if (inFlight) await inFlight.catch(() => {})
+    if (timer) clearTimeout(timer)
+    // 刷新失败时也保留当前内容及未保存状态，避免网络异常造成丢失。
+    const previousSequence = savedSequence.value
+    savedSequence.value = editSequence.value
+    await loadData()
+    if (loadError.value) savedSequence.value = previousSequence
+  }
+  function clearAccount() {
+    epoch += 1
+    if (timer) clearTimeout(timer)
+    applyData(emptyAppData())
+    isReady.value = false
+    isLoading.value = false
+    editSequence.value = 0
+    savedSequence.value = 0
+    syncError.value = ''
+    loadError.value = ''
+    syncState.value = 'saved'
+  }
+  async function importLegacyData() {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw || !importDataFromJSON(raw)) throw new Error('旧版本地数据格式不正确，请先导出备份并检查')
+    await flushSync()
+    hasLegacyData.value = false
+  }
 
   const activeTab = ref<'today' | 'goals' | 'stats'>('today')
   const selectedDate = ref<string>(getTodayString())
@@ -180,17 +295,6 @@ export const useKeepDoStore = defineStore('keepdo', () => {
   // 立即应用初始化
   applyDarkMode(isDarkMode.value)
 
-  // 监听持久化
-  function saveToStorage() {
-    const data: AppData = {
-      goals: goals.value,
-      habits: habits.value,
-      todos: todos.value,
-      categories: categories.value
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  }
-
   function toggleDarkMode() {
     isDarkMode.value = !isDarkMode.value
     localStorage.setItem('keepdo_dark_mode', String(isDarkMode.value))
@@ -208,37 +312,26 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     return todos.value.filter(t => t.date === selectedDate.value)
   })
 
-  // 计算属性：今日完成进度百分比
-  const todayProgress = computed(() => {
-    const day = selectedDate.value
-    const dayTodos = todos.value.filter(t => t.date === day)
-    const dayHabits = habits.value
-
-    const totalTasks = dayTodos.length + dayHabits.length
-    if (totalTasks === 0) return 100
-
-    const completedTodos = dayTodos.filter(t => t.completed).length
-    const completedHabits = dayHabits.filter(h => (h.records[day] || 0) >= h.targetPerDay).length
-
-    return Math.round(((completedTodos + completedHabits) / totalTasks) * 100)
-  })
+  // 当日行动与长期目标累计进度分开统计，零行动不视为全部完成。
+  const dailyActionSummary = computed(() => getDailyActionSummary(todos.value, habits.value, selectedDate.value))
+  const todayProgress = computed(() => dailyActionSummary.value.percent)
 
   // ------------------ Actions: Goals ------------------
   function addGoal(goal: Omit<Goal, 'id' | 'createdAt'>) {
     const newGoal: Goal = {
       ...goal,
-      id: `g-${Date.now()}`,
+      id: `g-${crypto.randomUUID()}`,
       createdAt: getTodayString()
     }
     goals.value.push(newGoal)
-    saveToStorage()
+    scheduleSave()
   }
 
   function updateGoal(id: string, updates: Partial<Goal>) {
     const idx = goals.value.findIndex(g => g.id === id)
     if (idx !== -1) {
       goals.value[idx] = { ...goals.value[idx], ...updates }
-      saveToStorage()
+      scheduleSave()
     }
   }
 
@@ -251,7 +344,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     todos.value.forEach(t => {
       if (t.goalId === id) t.goalId = null
     })
-    saveToStorage()
+    scheduleSave()
   }
 
   function toggleMilestone(goalId: string, milestoneId: string) {
@@ -265,7 +358,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
         if (goal.currentValue === goal.targetValue && goal.targetValue > 0) {
           triggerCelebration()
         }
-        saveToStorage()
+        scheduleSave()
       }
     }
   }
@@ -277,33 +370,44 @@ export const useKeepDoStore = defineStore('keepdo', () => {
       if (goal.currentValue >= goal.targetValue && goal.targetValue > 0) {
         triggerCelebration()
       }
-      saveToStorage()
+      scheduleSave()
     }
+  }
+
+  function toggleGoalDay(goalId: string, date: string = selectedDate.value) {
+    const goal = goals.value.find(item => item.id === goalId)
+    if (!goal) return
+    const updates = getGoalCheckInUpdate(goal, habits.value, date, getTodayString())
+    if (!updates) return
+    const previous = goal.currentValue
+    Object.assign(goal, updates)
+    if (goal.type === 'days' && previous < goal.targetValue && goal.currentValue >= goal.targetValue) triggerCelebration()
+    scheduleSave()
   }
 
   // ------------------ Actions: Habits ------------------
   function addHabit(habit: Omit<Habit, 'id' | 'records' | 'createdAt'>) {
     const newHabit: Habit = {
       ...habit,
-      id: `h-${Date.now()}`,
+      id: `h-${crypto.randomUUID()}`,
       records: {},
       createdAt: getTodayString()
     }
     habits.value.push(newHabit)
-    saveToStorage()
+    scheduleSave()
   }
 
   function updateHabit(id: string, updates: Partial<Habit>) {
     const idx = habits.value.findIndex(h => h.id === id)
     if (idx !== -1) {
       habits.value[idx] = { ...habits.value[idx], ...updates }
-      saveToStorage()
+      scheduleSave()
     }
   }
 
   function deleteHabit(id: string) {
     habits.value = habits.value.filter(h => h.id !== id)
-    saveToStorage()
+    scheduleSave()
   }
 
   function toggleHabitDay(habitId: string, date: string = selectedDate.value) {
@@ -313,40 +417,31 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     const currentVal = habit.records[date] || 0
     const target = habit.targetPerDay || 1
     const isCompletedBefore = currentVal >= target
+    const linkedGoal = getGoalById(habit.goalId)
+    const countedBefore = linkedGoal ? isGoalDayCounted(linkedGoal, habits.value, date) : false
 
     if (isCompletedBefore) {
       delete habit.records[date]
-      // 如果关联了天数型目标，回退
-      if (habit.goalId) {
-        const goal = goals.value.find(g => g.id === habit.goalId)
-        if (goal && goal.type === 'days') {
-          goal.currentValue = Math.max(0, goal.currentValue - 1)
-        }
-      }
     } else {
       habit.records[date] = target
-      // 如果关联了天数型目标，累加
-      if (habit.goalId) {
-        const goal = goals.value.find(g => g.id === habit.goalId)
-        if (goal && goal.type === 'days') {
-          goal.currentValue += 1
-          if (goal.currentValue >= goal.targetValue) {
-            triggerCelebration()
-          }
-        }
-      }
       // 检查今日是否全部达成
       checkAndCelebrateToday()
     }
 
-    saveToStorage()
+    if (linkedGoal?.type === 'days') {
+      // 同一天的目标打卡与多个关联习惯只累计一天。
+      const delta = Number(isGoalDayCounted(linkedGoal, habits.value, date)) - Number(countedBefore)
+      linkedGoal.currentValue = Math.max(0, linkedGoal.currentValue + delta)
+      if (delta > 0 && linkedGoal.currentValue >= linkedGoal.targetValue) triggerCelebration()
+    }
+    scheduleSave()
   }
 
   // ------------------ Actions: Todos ------------------
   function addTodo(title: string, priority: Todo['priority'] = 'medium', goalId?: string | null, date: string = selectedDate.value) {
     if (!title.trim()) return
     const newTodo: Todo = {
-      id: `t-${Date.now()}`,
+      id: `t-${crypto.randomUUID()}`,
       title: title.trim(),
       date,
       priority,
@@ -355,7 +450,8 @@ export const useKeepDoStore = defineStore('keepdo', () => {
       createdAt: getTodayString()
     }
     todos.value.unshift(newTodo)
-    saveToStorage()
+    scheduleSave()
+    return newTodo.id
   }
 
   function toggleTodo(id: string) {
@@ -365,25 +461,25 @@ export const useKeepDoStore = defineStore('keepdo', () => {
       if (todo.completed) {
         checkAndCelebrateToday()
       }
-      saveToStorage()
+      scheduleSave()
     }
   }
 
   function deleteTodo(id: string) {
     todos.value = todos.value.filter(t => t.id !== id)
-    saveToStorage()
+    scheduleSave()
   }
 
   function updateTodo(id: string, updates: Partial<Todo>) {
     const idx = todos.value.findIndex(t => t.id === id)
     if (idx !== -1) {
       todos.value[idx] = { ...todos.value[idx], ...updates }
-      saveToStorage()
+      scheduleSave()
     }
   }
 
   function checkAndCelebrateToday() {
-    if (todayProgress.value === 100) {
+    if (dailyActionSummary.value.state === 'completed') {
       triggerCelebration()
     }
   }
@@ -401,17 +497,9 @@ export const useKeepDoStore = defineStore('keepdo', () => {
 
   function importDataFromJSON(jsonString: string): boolean {
     try {
-      const parsed = JSON.parse(jsonString) as AppData
-      if (!Array.isArray(parsed.goals) || !Array.isArray(parsed.habits) || !Array.isArray(parsed.todos)) {
-        throw new Error('格式不符合 KeepDo 数据规范')
-      }
-      goals.value = parsed.goals
-      habits.value = parsed.habits
-      todos.value = parsed.todos
-      if (Array.isArray(parsed.categories)) {
-        categories.value = parsed.categories
-      }
-      saveToStorage()
+      const parsed = appDataSchema.parse(JSON.parse(jsonString))
+      applyData(parsed)
+      scheduleSave()
       return true
     } catch (e) {
       console.error(e)
@@ -425,10 +513,12 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     habits.value = sample.habits
     todos.value = sample.todos
     categories.value = sample.categories
-    saveToStorage()
+    scheduleSave()
   }
 
   return {
+    isReady, isLoading, loadError, syncState, syncError, sessionExpired,
+    hasUnsavedChanges, hasLegacyData, loadData, flushSync, reloadData, clearAccount, importLegacyData,
     goals,
     habits,
     todos,
@@ -438,6 +528,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     isDarkMode,
     todosForSelectedDate,
     todayProgress,
+    dailyActionSummary,
     getGoalById,
     toggleDarkMode,
     addGoal,
@@ -445,6 +536,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     deleteGoal,
     toggleMilestone,
     adjustGoalValue,
+    toggleGoalDay,
     addHabit,
     updateHabit,
     deleteHabit,

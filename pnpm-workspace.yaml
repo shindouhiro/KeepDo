@@ -1,0 +1,9 @@
+packages:
+  - '.'
+
+catalog:
+  '@cloudflare/workers-types': 5.20261027.1
+  concurrently: ^10.0.6
+  wait-on: ^9.5.1
+  wrangler: 4.152.0
+  zod: 4.6.7

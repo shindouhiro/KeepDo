@@ -19,9 +19,9 @@ defineEmits<{
 
 <template>
   <header class="sticky top-0 z-40 border-b border-slate-200/60 bg-white/75 backdrop-blur-xl transition-colors dark:border-slate-800/80 dark:bg-[#0B0F17]/80">
-    <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 md:flex-nowrap">
       <!-- 品牌 Logo -->
-      <div class="flex items-center gap-3">
+      <div class="flex shrink-0 items-center gap-3">
         <div class="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20 transition-transform hover:scale-105">
           <Target class="h-5 w-5" />
           <div class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#0B0F17]"></div>
@@ -43,10 +43,11 @@ defineEmits<{
       </div>
 
       <!-- 居中选项卡导航 (Segmented Control) -->
-      <nav class="flex items-center rounded-2xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60 dark:bg-slate-900/90 dark:ring-slate-800">
+      <nav class="order-3 flex w-full items-center rounded-2xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60 md:order-none md:w-auto dark:bg-slate-900/90 dark:ring-slate-800">
         <button
+          id="nav-today"
           @click="store.activeTab = 'today'"
-          class="relative flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all sm:text-sm"
+          class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all sm:text-sm md:flex-none"
           :class="store.activeTab === 'today'
             ? 'bg-white text-indigo-600 shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-none'
             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'"
@@ -54,14 +55,15 @@ defineEmits<{
           <ListTodo class="h-4 w-4" />
           <span>今日专注</span>
           <span
-            v-if="store.todayProgress === 100"
+            v-if="store.dailyActionSummary.state === 'completed'"
             class="flex h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-300 dark:ring-emerald-900"
           ></span>
         </button>
 
         <button
+          id="nav-goals"
           @click="store.activeTab = 'goals'"
-          class="relative flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all sm:text-sm"
+          class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all sm:text-sm md:flex-none"
           :class="store.activeTab === 'goals'
             ? 'bg-white text-indigo-600 shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-none'
             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'"
@@ -74,8 +76,9 @@ defineEmits<{
         </button>
 
         <button
+          id="nav-stats"
           @click="store.activeTab = 'stats'"
-          class="relative flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all sm:text-sm"
+          class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all sm:text-sm md:flex-none"
           :class="store.activeTab === 'stats'
             ? 'bg-white text-indigo-600 shadow-sm shadow-slate-200/60 dark:bg-slate-800 dark:text-white dark:shadow-none'
             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'"
@@ -90,10 +93,11 @@ defineEmits<{
         <!-- 今日完成度胶囊 -->
         <div class="hidden items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/60 px-3 py-1 text-xs font-medium text-slate-600 md:flex dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
           <Sparkles class="h-3.5 w-3.5 text-amber-500" />
-          <span>今日 {{ store.todayProgress }}%</span>
+          <span>{{ store.dailyActionSummary.total ? `当日 ${store.todayProgress}%` : '当日未安排' }}</span>
         </div>
 
         <button
+          id="nav-toggle-theme"
           @click="store.toggleDarkMode"
           title="切换深浅主题"
           class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/60 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -103,6 +107,7 @@ defineEmits<{
         </button>
 
         <button
+          id="nav-open-settings"
           @click="$emit('open-settings')"
           title="设置与数据备份"
           class="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/60 bg-white text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"

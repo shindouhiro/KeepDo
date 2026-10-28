@@ -16,6 +16,7 @@ const store = useKeepDoStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const statusMessage = ref('')
 const isError = ref(false)
+const busy = ref(false)
 
 function handleExport() {
   const json = store.exportDataAsJSON()
@@ -41,26 +42,42 @@ function handleFileChange(event: Event) {
   if (!file) return
 
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     const content = e.target?.result as string
+    if (!confirm('导入会替换当前账号数据，确定继续吗？')) return
+    busy.value = true
     const success = store.importDataFromJSON(content)
     if (success) {
-      statusMessage.value = '数据恢复成功！'
-      isError.value = false
+      try {
+        await store.flushSync()
+        statusMessage.value = '数据已恢复并保存到当前账号！'
+        isError.value = false
+      } catch (cause) {
+        statusMessage.value = cause instanceof Error ? cause.message : '数据已导入页面，但尚未保存，请重试'
+        isError.value = true
+      }
     } else {
       statusMessage.value = '导入失败，请检查 JSON 文件格式是否匹配。'
       isError.value = true
     }
+    busy.value = false
   }
   reader.readAsText(file)
   target.value = ''
 }
 
-function handleReset() {
+async function handleReset() {
   if (confirm('确定要重置并载入精选示例数据吗？当前数据将被覆盖。')) {
-    store.resetToSample()
-    statusMessage.value = '已重置为精选示例数据！'
-    isError.value = false
+    busy.value = true
+    try {
+      store.resetToSample()
+      await store.flushSync()
+      statusMessage.value = '示例数据已保存到当前账号！'
+      isError.value = false
+    } catch (cause) {
+      statusMessage.value = cause instanceof Error ? cause.message : '保存失败，请重试'
+      isError.value = true
+    } finally { busy.value = false }
   }
 }
 </script>
@@ -76,6 +93,8 @@ function handleReset() {
           <h3 class="font-display text-base font-bold text-slate-900 dark:text-white">设置与数据管理</h3>
         </div>
         <button
+          id="settings-close-icon"
+          aria-label="关闭设置"
           @click="$emit('close')"
           class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
         >
@@ -97,9 +116,9 @@ function handleReset() {
         <div class="flex items-start gap-3 rounded-2xl bg-slate-50/80 p-4 dark:bg-slate-800/50">
           <ShieldCheck class="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <div class="text-xs text-slate-600 dark:text-slate-300">
-            <span class="font-bold text-slate-900 dark:text-white">100% 浏览器本地存储</span>
+            <span class="font-bold text-slate-900 dark:text-white">账号独立 · 云端持久保存</span>
             <p class="mt-1 text-slate-500 dark:text-slate-400">
-              数据完全保存在当前设备，无需联网登录，保证完全隐私和毫秒级闪电响应。
+              数据保存到当前账号的云端数据库，其他设备登录同一账号即可读取。离线或保存失败时，请保留页面并导出备份。
             </p>
           </div>
         </div>
@@ -107,6 +126,7 @@ function handleReset() {
         <!-- 导出与导入 -->
         <div class="space-y-2">
           <button
+            id="settings-export-data"
             @click="handleExport"
             class="flex w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-3.5 text-xs font-bold text-slate-700 transition-all hover:bg-slate-50 active:scale-98 dark:border-slate-700/80 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800"
           >
@@ -118,6 +138,7 @@ function handleReset() {
           </button>
 
           <input
+            id="settings-import-file"
             ref="fileInput"
             type="file"
             accept=".json"
@@ -126,6 +147,8 @@ function handleReset() {
           />
 
           <button
+            id="settings-import-data"
+            :disabled="busy"
             @click="triggerImport"
             class="flex w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-3.5 text-xs font-bold text-slate-700 transition-all hover:bg-slate-50 active:scale-98 dark:border-slate-700/80 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800"
           >
@@ -140,6 +163,8 @@ function handleReset() {
         <!-- 重置示例数据 -->
         <div class="border-t border-slate-100 pt-3 dark:border-slate-800">
           <button
+            id="settings-reset-sample"
+            :disabled="busy"
             @click="handleReset"
             class="flex w-full items-center justify-between rounded-2xl border border-amber-200/70 bg-amber-50/50 p-3.5 text-xs font-bold text-amber-800 transition-all hover:bg-amber-100/60 active:scale-98 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300"
           >
@@ -154,6 +179,7 @@ function handleReset() {
 
       <div class="mt-6 flex justify-end">
         <button
+          id="settings-close-done"
           @click="$emit('close')"
           class="rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white transition-all hover:bg-slate-800 active:scale-95 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
         >

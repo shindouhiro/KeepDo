@@ -2,32 +2,52 @@
 import { ref, computed } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
 import {
-  formatDisplayDate,
-  addDays,
-  getTodayString,
-  getWeekDays,
   calculateHabitStreak
 } from '../utils/date'
-import type { Priority } from '../types'
+import type { Goal, Priority, Todo } from '../types'
+import CalendarGoals from './CalendarGoals.vue'
+import CalendarPlanner from './CalendarPlanner.vue'
+import CalendarDayDialog from './CalendarDayDialog.vue'
+import TodoModal from './TodoModal.vue'
+import { getGoalsForDate, getHabitsForDate } from '../../shared/calendar'
 import {
-  ChevronLeft,
-  ChevronRight,
   Plus,
   Flame,
   Target,
   Check,
   Trash2,
-  Sparkles,
   Smile,
   ListTodo
 } from '@lucide/vue'
 
 const store = useKeepDoStore()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'new-habit'): void
   (e: 'edit-habit', habitId: string): void
+  (e: 'edit-goal', goal: Goal): void
 }>()
+
+const isDayDetailsOpen = ref(false)
+const isTodoModalOpen = ref(false)
+const todoToEdit = ref<Todo | null>(null)
+function openTodoEditor(todo: Todo | null) {
+  isDayDetailsOpen.value = false
+  todoToEdit.value = todo
+  isTodoModalOpen.value = true
+}
+function editGoalFromDetails(goal: Goal) {
+  isDayDetailsOpen.value = false
+  emit('edit-goal', goal)
+}
+function editHabitFromDetails(id: string) {
+  isDayDetailsOpen.value = false
+  emit('edit-habit', id)
+}
+function showGoalsFromDetails() {
+  isDayDetailsOpen.value = false
+  store.activeTab = 'goals'
+}
 
 // 待办过滤器
 const todoFilter = ref<'all' | 'active' | 'completed'>('all')
@@ -48,40 +68,17 @@ function handleAddTodo() {
   newTodoTitle.value = ''
 }
 
-// 快速日期切换
-function prevDay() {
-  store.selectedDate = addDays(store.selectedDate, -1)
-}
-function nextDay() {
-  store.selectedDate = addDays(store.selectedDate, 1)
-}
-function gotoToday() {
-  store.selectedDate = getTodayString()
-}
 function selectDate(date: string) {
   store.selectedDate = date
+  isDayDetailsOpen.value = true
+}
+function addCalendarTodo(date: string) {
+  store.selectedDate = date
+  openTodoEditor(null)
 }
 
-// 7天周历列表
-const weekDays = computed(() => {
-  return getWeekDays(store.selectedDate)
-})
-
-// 检查某天是否有完成记录
-function getDayCompletionStatus(dateStr: string): 'none' | 'partial' | 'completed' {
-  const dayTodos = store.todos.filter(t => t.date === dateStr)
-  const dayHabits = store.habits
-  const total = dayTodos.length + dayHabits.length
-  if (total === 0) return 'none'
-
-  const doneTodos = dayTodos.filter(t => t.completed).length
-  const doneHabits = dayHabits.filter(h => (h.records[dateStr] || 0) >= h.targetPerDay).length
-  const doneTotal = doneTodos + doneHabits
-
-  if (doneTotal === 0) return 'none'
-  if (doneTotal === total) return 'completed'
-  return 'partial'
-}
+const selectedHabits = computed(() => getHabitsForDate(store.habits, store.selectedDate))
+const selectedGoals = computed(() => getGoalsForDate(store.goals, store.selectedDate))
 
 // 过滤后的待办列表
 const filteredTodos = computed(() => {
@@ -93,127 +90,25 @@ const filteredTodos = computed(() => {
 
 // 习惯打卡完成统计
 const completedHabitsCount = computed(() => {
-  return store.habits.filter(h => (h.records[store.selectedDate] || 0) >= h.targetPerDay).length
+  return selectedHabits.value.filter(h => (h.records[store.selectedDate] || 0) >= h.targetPerDay).length
 })
 
-const uncompletedTodosCount = computed(() => {
-  return store.todosForSelectedDate.filter(t => !t.completed).length
-})
-
-const isToday = computed(() => store.selectedDate === getTodayString())
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- 顶部：交互式周历与专注总览 Hero 卡片 -->
-    <div class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all dark:border-slate-800/80 dark:bg-[#121824]">
-      <!-- 柔和背景光晕微装饰 -->
-      <div class="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl dark:bg-indigo-600/15"></div>
-      <div class="pointer-events-none absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-600/10"></div>
+    <CalendarPlanner
+      :date="store.selectedDate"
+      :goals="store.goals"
+      :habits="store.habits"
+      :todos="store.todos"
+      @select-date="store.selectedDate = $event"
+      @inspect-date="selectDate"
+      @new-todo="addCalendarTodo"
+      @check-in-goal="store.toggleGoalDay"
+    />
 
-      <!-- 第一行：日期导航与快速跳转 -->
-      <div class="relative z-10 flex flex-col gap-3 pb-4 border-b border-slate-100 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800/60">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1">
-            <button
-              @click="prevDay"
-              title="前一天"
-              class="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200/70 bg-white text-slate-600 transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-700/80 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              <ChevronLeft class="h-4 w-4" />
-            </button>
-            <button
-              @click="nextDay"
-              title="后一天"
-              class="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200/70 bg-white text-slate-600 transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-700/80 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              <ChevronRight class="h-4 w-4" />
-            </button>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <span class="font-display text-lg font-bold tracking-tight text-slate-900 sm:text-xl dark:text-white">
-              {{ formatDisplayDate(store.selectedDate) }}
-            </span>
-            <button
-              v-if="!isToday"
-              @click="gotoToday"
-              class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-600 transition-all hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-400 dark:hover:bg-indigo-900"
-            >
-              回今天
-            </button>
-          </div>
-        </div>
-
-        <!-- 今日完成统计徽章 -->
-        <div class="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-          <span>待办剩 {{ uncompletedTodosCount }} 项</span>
-          <span class="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-          <span>习惯剩 {{ store.habits.length - completedHabitsCount }} 项</span>
-        </div>
-      </div>
-
-      <!-- 第二行：周历切换条 (Week Calendar Strip) -->
-      <div class="relative z-10 grid grid-cols-7 gap-1.5 pt-4 sm:gap-2">
-        <button
-          v-for="item in weekDays"
-          :key="item.date"
-          @click="selectDate(item.date)"
-          class="group flex flex-col items-center rounded-2xl p-2 transition-all active:scale-95"
-          :class="item.date === store.selectedDate
-            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 ring-2 ring-indigo-500/20'
-            : 'bg-slate-50/80 text-slate-600 hover:bg-slate-100/90 dark:bg-slate-800/40 dark:text-slate-400 dark:hover:bg-slate-800'"
-        >
-          <span class="text-[11px] font-medium" :class="item.date === store.selectedDate ? 'text-indigo-100' : 'text-slate-400 dark:text-slate-500'">
-            周{{ item.weekDayName }}
-          </span>
-          <span class="mt-0.5 font-display text-sm font-bold sm:text-base">
-            {{ item.dayNumber }}
-          </span>
-
-          <!-- 状态小圆点 -->
-          <div class="mt-1 flex h-1.5 items-center justify-center">
-            <span
-              v-if="getDayCompletionStatus(item.date) === 'completed'"
-              class="h-1.5 w-1.5 rounded-full"
-              :class="item.date === store.selectedDate ? 'bg-white' : 'bg-emerald-500'"
-            ></span>
-            <span
-              v-else-if="getDayCompletionStatus(item.date) === 'partial'"
-              class="h-1.5 w-1.5 rounded-full"
-              :class="item.date === store.selectedDate ? 'bg-indigo-200' : 'bg-amber-400'"
-            ></span>
-            <span
-              v-else-if="item.isToday"
-              class="h-1 w-1 rounded-full"
-              :class="item.date === store.selectedDate ? 'bg-white/60' : 'bg-indigo-400'"
-            ></span>
-          </div>
-        </button>
-      </div>
-
-      <!-- 进度指示条 -->
-      <div class="relative z-10 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-slate-50/80 px-4 py-2.5 dark:bg-slate-800/40">
-        <div class="flex items-center gap-2">
-          <Sparkles class="h-4 w-4 text-indigo-500" />
-          <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            {{ store.todayProgress === 100 ? '🎉 太棒了！今日全部目标与行动已圆满搞定！' : `今日行动已达成 ${store.todayProgress}% · 稳步前进` }}
-          </span>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <div class="h-2 w-28 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-            <div
-              class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
-              :style="{ width: `${store.todayProgress}%` }"
-            ></div>
-          </div>
-          <span class="font-display text-xs font-bold text-slate-900 dark:text-white">
-            {{ store.todayProgress }}%
-          </span>
-        </div>
-      </div>
-    </div>
+    <CalendarGoals :goals="selectedGoals" :date="store.selectedDate" @edit-goal="$emit('edit-goal', $event)" @show-goals="store.activeTab = 'goals'" @check-in-goal="store.toggleGoalDay" />
 
     <!-- 模块一：每日习惯打卡 (Tactile Habits) -->
     <section class="space-y-3">
@@ -224,7 +119,7 @@ const isToday = computed(() => store.selectedDate === getTodayString())
           </div>
           <h2 class="font-display text-base font-bold text-slate-900 dark:text-white">日常习惯</h2>
           <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-            {{ completedHabitsCount }} / {{ store.habits.length }} 已完成
+            {{ completedHabitsCount }} / {{ selectedHabits.length }} 已完成
           </span>
         </div>
 
@@ -238,9 +133,9 @@ const isToday = computed(() => store.selectedDate === getTodayString())
       </div>
 
       <!-- 习惯卡片网格 -->
-      <div v-if="store.habits.length > 0" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div v-if="selectedHabits.length > 0" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div
-          v-for="habit in store.habits"
+          v-for="habit in selectedHabits"
           :key="habit.id"
           class="group relative flex items-center justify-between rounded-2xl border p-4 transition-all duration-200"
           :class="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay
@@ -283,16 +178,20 @@ const isToday = computed(() => store.selectedDate === getTodayString())
           <!-- 触觉打卡按钮 -->
           <div class="flex items-center gap-2">
             <button
+              :id="`today-habit-checkin-${store.selectedDate}-${habit.id}`"
+              type="button"
+              :aria-label="`${(habit.records[store.selectedDate] || 0) >= habit.targetPerDay ? '取消打卡' : '打卡'}：${habit.title}`"
+              :aria-pressed="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay"
               @click="store.toggleHabitDay(habit.id, store.selectedDate)"
-              class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-all duration-200 active:scale-90"
+              class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 active:scale-95"
               :class="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay
-                ? 'bg-gradient-to-tr from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30'
-                : 'border border-slate-200/80 bg-slate-50 text-slate-300 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500 dark:hover:border-indigo-500 dark:hover:text-indigo-400'"
+                ? 'border-emerald-300/80 bg-emerald-50 text-emerald-600 dark:border-emerald-700/70 dark:bg-emerald-950/30 dark:text-emerald-300'
+                : 'border-slate-200/90 bg-transparent text-slate-300 hover:border-indigo-300 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-500 dark:hover:border-indigo-500 dark:hover:text-indigo-400'"
               :title="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay ? '点击取消打卡' : '点击完成打卡'"
             >
               <Check
-                class="h-6 w-6 transition-transform"
-                :class="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay ? 'scale-100 stroke-[2.8]' : 'scale-90 stroke-[2]'"
+                class="h-4 w-4"
+                :class="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay ? 'stroke-[2.5]' : 'stroke-[1.5]'"
               />
             </button>
 
@@ -438,14 +337,18 @@ const isToday = computed(() => store.selectedDate === getTodayString())
 
             <!-- 标题内容与标签 -->
             <div class="min-w-0 flex-1">
-              <span
-                class="block truncate text-sm transition-all"
+              <button
+                :id="`today-todo-details-${todo.id}`"
+                type="button"
+                title="查看或编辑待办"
+                @click="openTodoEditor(todo)"
+                class="block w-full truncate rounded text-left text-sm transition-all focus-visible:outline-2 focus-visible:outline-indigo-500"
                 :class="todo.completed
                   ? 'text-slate-400 line-through dark:text-slate-500'
                   : 'font-semibold text-slate-800 dark:text-slate-100'"
               >
                 {{ todo.title }}
-              </span>
+              </button>
 
               <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                 <!-- 优先级 -->
@@ -498,5 +401,17 @@ const isToday = computed(() => store.selectedDate === getTodayString())
         </p>
       </div>
     </section>
+    <CalendarDayDialog
+      :is-open="isDayDetailsOpen"
+      :date="store.selectedDate"
+      @close="isDayDetailsOpen = false"
+      @update-date="store.selectedDate = $event"
+      @edit-goal="editGoalFromDetails"
+      @edit-habit="editHabitFromDetails"
+      @edit-todo="openTodoEditor"
+      @new-todo="openTodoEditor(null)"
+      @show-goals="showGoalsFromDetails"
+    />
+    <TodoModal :is-open="isTodoModalOpen" :todo="todoToEdit" :date="store.selectedDate" @close="isTodoModalOpen = false" />
   </div>
 </template>

@@ -17,6 +17,7 @@ export interface Goal {
   unit: string
   deadline?: string
   milestones: Milestone[]
+  checkIns?: Record<string, boolean> // 按日期保存目标行动标记。
   color: string
   createdAt: string
 }
