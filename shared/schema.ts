@@ -16,7 +16,7 @@ const goalSchema = z.object({
   color: colors, createdAt: date,
 })
 const habitSchema = z.object({
-  id, title: text, goalId, targetPerDay: count.positive(), unit: z.string().max(40),
+  id, title: text, description: z.string().max(5000).optional(), goalId, targetPerDay: count.positive(), unit: z.string().max(40),
   records: z.record(date, count).refine(value => Object.keys(value).length <= 20_000),
   color: colors, createdAt: date,
 })

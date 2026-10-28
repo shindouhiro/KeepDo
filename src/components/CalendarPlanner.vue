@@ -8,13 +8,14 @@ import { getCalendarDates, getCalendarPlans, getDailyActionSummary } from '../..
 import { addDays, getTodayString } from '../utils/date'
 import CalendarPlanItem from './CalendarPlanItem.vue'
 
-const props = withDefaults(defineProps<{ date: string; goals: Goal[]; habits: Habit[]; todos: Todo[]; journalDates?: JournalDates }>(), { journalDates: () => ({}) })
+const props = withDefaults(defineProps<{ date: string; goals: Goal[]; habits: Habit[]; todos: Todo[]; journalDates?: JournalDates; habitJournalDates?: JournalDates }>(), { journalDates: () => ({}), habitJournalDates: () => ({}) })
 const emit = defineEmits<{
   'select-date': [date: string]
   'inspect-date': [date: string]
   'new-todo': [date: string]
   'check-in-goal': [goalId: string, date: string]
   'inspect-goal': [goalId: string, date: string]
+  'inspect-habit': [habitId: string, date: string]
 }>()
 const view = shallowRef<CalendarView>('week')
 const today = getTodayString()
@@ -24,7 +25,7 @@ const days = computed(() => getCalendarDates(props.date, view.value).map((date, 
   day: Number(date.slice(-2)),
   weekday: weekdays[index % 7],
   inMonth: date.slice(0, 7) === props.date.slice(0, 7),
-  plans: getCalendarPlans(props.goals, props.habits, props.todos, date, props.journalDates),
+  plans: getCalendarPlans(props.goals, props.habits, props.todos, date, props.journalDates, props.habitJournalDates),
   summary: getDailyActionSummary(props.todos, props.habits, date),
 })))
 const heading = computed(() => `${Number(props.date.slice(0, 4))} 年 ${Number(props.date.slice(5, 7))} 月`)
@@ -45,6 +46,11 @@ function pickDate(event: Event) {
   const input = event.target as HTMLInputElement
   if (/^\d{4}-\d{2}-\d{2}$/.test(input.value)) emit('select-date', input.value)
   else input.value = props.date
+}
+function inspectPlan(kind: 'goal' | 'habit' | 'todo', id: string, date: string) {
+  if (kind === 'goal') emit('inspect-goal', id, date)
+  else if (kind === 'habit') emit('inspect-habit', id, date)
+  else emit('inspect-date', date)
 }
 </script>
 
@@ -113,7 +119,7 @@ function pickDate(event: Event) {
           </button>
           <p v-if="day.summary.total" class="mb-3 px-1 text-[10px] text-slate-500 dark:text-slate-400">行动 {{ day.summary.completed }}/{{ day.summary.total }} 已完成</p>
           <div v-if="day.plans.length" class="space-y-2">
-            <CalendarPlanItem v-for="plan in day.plans" :key="plan.id" :plan="plan" :date="day.date" @inspect="plan.kind === 'goal' ? emit('inspect-goal', plan.sourceId, day.date) : emit('inspect-date', day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
+            <CalendarPlanItem v-for="plan in day.plans" :key="plan.id" :plan="plan" :date="day.date" @inspect="inspectPlan(plan.kind, plan.sourceId, day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
           </div>
           <div v-else class="flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200/80 text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
             <span>留一点自由时间</span>

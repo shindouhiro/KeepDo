@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ImagePlus, LoaderCircle, X, PenLine } from '@lucide/vue'
-import type { GoalJournalEntry } from '../../../shared/journal'
+import type { JournalEntry } from '../../../shared/journal'
 import { JOURNAL_IMAGE_COUNT } from '../../../shared/journal'
-import type { JournalDraft } from '../../composables/useGoalJournal'
+import type { JournalDraft } from '../../composables/useJournal'
 import { prepareJournalImage } from '../../lib/journal-images'
 
-const props = defineProps<{ date: string; entry: GoalJournalEntry | null; saving: boolean; error: string }>()
+const props = defineProps<{ date: string; entry: JournalEntry | null; saving: boolean; error: string }>()
 const emit = defineEmits<{ save: [draft: JournalDraft]; cancel: []; dirty: [dirty: boolean] }>()
 const content = ref(props.entry?.content || '')
 const existing = ref([...(props.entry?.images || [])])
@@ -57,7 +57,7 @@ onBeforeUnmount(() => { disposed = true; pending.value.forEach(image => URL.revo
       <span class="text-[11px] tabular-nums text-slate-400">{{ date }}</span>
     </div>
     <fieldset :disabled="saving || processing" class="min-w-0 disabled:opacity-65">
-      <label for="journal-entry-content" class="sr-only">当天的目标进展与详情</label>
+      <label for="journal-entry-content" class="sr-only">当天的进展与详情</label>
       <textarea id="journal-entry-content" v-model="content" rows="4" maxlength="5000" placeholder="今天做了什么？有什么收获、想法或值得记住的瞬间…" class="w-full resize-y rounded-xl border border-transparent bg-slate-50/70 px-3 py-2.5 text-sm leading-7 text-slate-700 placeholder:text-slate-400 focus:border-indigo-200 focus:outline-none dark:bg-slate-950/40 dark:text-slate-200 dark:focus:border-indigo-800"></textarea>
       <div v-if="count" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="记录中的图片">
         <div v-for="image in existing" :key="image.id" class="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">

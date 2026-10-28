@@ -24,7 +24,7 @@ const kinds = {
       type="button"
       :aria-label="`${date}，${kinds[plan.kind].label}：${plan.title}，${plan.completed ? (plan.kind === 'goal' ? '已达成' : '已完成') : plan.detail}${plan.checkedIn ? '，当天已打卡' : ''}${plan.attention ? `，${plan.attention}` : ''}，查看详情`"
       aria-haspopup="dialog"
-      :aria-controls="plan.kind === 'goal' ? 'goal-journal-dialog' : 'calendar-day-dialog'"
+      :aria-controls="plan.kind === 'todo' ? 'calendar-day-dialog' : `${plan.kind}-journal-dialog`"
       class="w-full min-w-0 rounded-lg px-2.5 pt-0.5 pb-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-500"
       @click="emit('inspect')"
     >

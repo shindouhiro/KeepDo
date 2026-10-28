@@ -6,6 +6,8 @@ import {
   calculateHabitStreak
 } from '../utils/date'
 import type { Goal, Priority, Todo } from '../types'
+import type { JournalSubjectType } from '../../shared/journal'
+import { getJournalDates } from '../../shared/journal'
 import CalendarGoals from './CalendarGoals.vue'
 import CalendarPlanner from './CalendarPlanner.vue'
 import CalendarDayDialog from './CalendarDayDialog.vue'
@@ -23,14 +25,20 @@ import {
 
 const store = useKeepDoStore()
 const journalIndex = useJournalStore()
-const GoalJournalDialog = defineAsyncComponent(() => import('./journal/GoalJournalDialog.vue'))
-const journalGoalId = ref<string | null>(null)
-const journalGoal = computed(() => store.goals.find(goal => goal.id === journalGoalId.value) || null)
-function openGoalJournal(goalId: string, date: string) {
+const JournalDialog = defineAsyncComponent(() => import('./journal/JournalDialog.vue'))
+const journalSubject = ref<{ type: JournalSubjectType; id: string } | null>(null)
+const journalItem = computed(() => {
+  const selected = journalSubject.value
+  if (!selected) return null
+  return (selected.type === 'goal' ? store.goals : store.habits).find(item => item.id === selected.id) || null
+})
+function openJournal(type: JournalSubjectType, id: string, date: string) {
   isDayDetailsOpen.value = false
   store.selectedDate = date
-  journalGoalId.value = goalId
+  journalSubject.value = { type, id }
 }
+function openGoalJournal(id: string, date: string) { openJournal('goal', id, date) }
+function openHabitJournal(id: string, date: string) { openJournal('habit', id, date) }
 onMounted(() => { void journalIndex.refresh() })
 onBeforeUnmount(() => journalIndex.clear())
 
@@ -115,16 +123,18 @@ const completedHabitsCount = computed(() => {
       :habits="store.habits"
       :todos="store.todos"
       :journal-dates="journalIndex.dates"
+      :habit-journal-dates="journalIndex.habitDates"
       @select-date="store.selectedDate = $event"
       @inspect-date="selectDate"
       @new-todo="addCalendarTodo"
       @check-in-goal="store.toggleGoalDay"
       @inspect-goal="openGoalJournal"
+      @inspect-habit="openHabitJournal"
     />
 
     <p v-if="journalIndex.error" class="text-xs text-amber-700 dark:text-amber-300">历史日记标记暂未加载。<button id="journal-index-retry" type="button" class="ml-1 underline" @click="journalIndex.refresh">重新加载</button></p>
     <CalendarGoals :goals="selectedGoals" :date="store.selectedDate" @edit-goal="$emit('edit-goal', $event)" @show-goals="store.activeTab = 'goals'" @check-in-goal="store.toggleGoalDay" @open-journal="openGoalJournal" />
-    <GoalJournalDialog v-if="journalGoal" :is-open="Boolean(journalGoal)" :goal="journalGoal" :date="store.selectedDate" @close="journalGoalId = null" />
+    <JournalDialog v-if="journalItem && journalSubject" :key="`${journalSubject.type}-${journalSubject.id}`" :is-open="true" :subject="journalItem" :subject-type="journalSubject.type" :date="store.selectedDate" @close="journalSubject = null" />
 
     <!-- 模块一：每日习惯打卡 (Tactile Habits) -->
     <section class="space-y-3">
@@ -160,13 +170,20 @@ const completedHabitsCount = computed(() => {
         >
           <div class="min-w-0 flex-1 pr-3">
             <div class="flex items-center gap-2">
-              <span
-                class="truncate text-sm font-bold text-slate-900 transition-colors dark:text-white"
+              <button
+                :id="`today-habit-title-${habit.id}`"
+                type="button"
+                :aria-label="`查看习惯日记：${habit.title}`"
+                aria-haspopup="dialog"
+                aria-controls="habit-journal-dialog"
+                class="min-w-0 truncate rounded text-left text-sm font-bold text-slate-900 transition-colors hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-white"
                 :class="(habit.records[store.selectedDate] || 0) >= habit.targetPerDay ? 'text-emerald-950 dark:text-emerald-200' : ''"
+                @click="openHabitJournal(habit.id, store.selectedDate)"
               >
                 {{ habit.title }}
-              </span>
+              </button>
             </div>
+            <p v-if="habit.description" class="mt-1.5 line-clamp-2 whitespace-pre-wrap break-words text-xs leading-5 text-slate-500 dark:text-slate-400">{{ habit.description }}</p>
 
             <div class="mt-1.5 flex flex-wrap items-center gap-2">
               <!-- 连续连击天数徽章 -->
@@ -189,6 +206,7 @@ const completedHabitsCount = computed(() => {
                 <span class="truncate">{{ store.getGoalById(habit.goalId)?.title }}</span>
               </span>
             </div>
+            <button :id="`today-habit-journal-${habit.id}`" type="button" :aria-label="`记录与时间线：${habit.title}`" aria-haspopup="dialog" aria-controls="habit-journal-dialog" class="mt-2 rounded px-0.5 py-1 text-[11px] font-medium text-indigo-600 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400" @click="openHabitJournal(habit.id, store.selectedDate)">记录 / 时间线<span v-if="getJournalDates(journalIndex.habitDates, habit.id).includes(store.selectedDate)" class="ml-1.5 text-emerald-600 dark:text-emerald-400">· 有记录</span></button>
           </div>
 
           <!-- 触觉打卡按钮 -->
@@ -213,8 +231,11 @@ const completedHabitsCount = computed(() => {
 
             <!-- 管理习惯入口 -->
             <button
+              :id="`today-habit-edit-${habit.id}`"
+              type="button"
+              :aria-label="`编辑习惯：${habit.title}`"
               @click="$emit('edit-habit', habit.id)"
-              class="opacity-0 transition-opacity hover:text-indigo-600 group-hover:opacity-100 dark:hover:text-indigo-400"
+              class="transition-opacity hover:text-indigo-600 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-indigo-500 sm:opacity-0 sm:group-hover:opacity-100 dark:hover:text-indigo-400"
               title="管理习惯"
             >
               <span class="text-[11px] font-medium text-slate-400 underline">编辑</span>
@@ -428,6 +449,7 @@ const completedHabitsCount = computed(() => {
       @new-todo="openTodoEditor(null)"
       @show-goals="showGoalsFromDetails"
       @open-journal="openGoalJournal"
+      @open-habit-journal="openHabitJournal"
     />
     <TodoModal :is-open="isTodoModalOpen" :todo="todoToEdit" :date="store.selectedDate" @close="isTodoModalOpen = false" />
   </div>

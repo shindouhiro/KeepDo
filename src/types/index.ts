@@ -25,6 +25,7 @@ export interface Goal {
 export interface Habit {
   id: string
   title: string
+  description?: string
   goalId?: string | null
   targetPerDay: number
   unit: string

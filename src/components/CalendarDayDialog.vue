@@ -19,6 +19,7 @@ const emit = defineEmits<{
   'new-todo': []
   'show-goals': []
   'open-journal': [goalId: string, date: string]
+  'open-habit-journal': [habitId: string, date: string]
 }>()
 const store = useKeepDoStore()
 const journalIndex = useJournalStore()
@@ -65,9 +66,11 @@ function selectDate(event: Event) {
               <button :id="`calendar-day-habit-toggle-${habit.id}`" type="button" :aria-label="`${(habit.records[date] || 0) >= habit.targetPerDay ? '取消打卡' : '打卡'}：${habit.title}`" :aria-pressed="(habit.records[date] || 0) >= habit.targetPerDay" class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border focus-visible:outline-2 focus-visible:outline-indigo-500" :class="(habit.records[date] || 0) >= habit.targetPerDay ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 text-slate-400 dark:border-slate-600'" @click="store.toggleHabitDay(habit.id, date)"><Check class="h-4 w-4" /></button>
               <div class="min-w-0 flex-1">
                 <h4 class="break-words text-sm font-semibold">{{ habit.title }}</h4>
+                <p v-if="habit.description" class="mt-1.5 whitespace-pre-wrap break-words text-xs leading-6 text-slate-500 dark:text-slate-400">{{ habit.description }}</p>
                 <p class="mt-1.5 text-xs leading-6 text-slate-500 dark:text-slate-400">{{ (habit.records[date] || 0) >= habit.targetPerDay ? '已打卡' : '待打卡' }} · {{ habit.records[date] || 0 }} / {{ habit.targetPerDay }} {{ habit.unit }}</p>
                 <p v-if="store.getGoalById(habit.goalId)" class="mt-1 break-words text-xs leading-6 text-indigo-600 dark:text-indigo-300">关联目标：{{ store.getGoalById(habit.goalId)?.title }}</p>
                 <p class="mt-1 text-[11px] text-slate-400">创建于 {{ habit.createdAt }}</p>
+                <button :id="`calendar-day-habit-journal-${habit.id}`" type="button" :aria-label="`记录与时间线：${habit.title}`" aria-haspopup="dialog" aria-controls="habit-journal-dialog" class="mt-2 rounded px-1 py-1 text-xs font-semibold text-indigo-600 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400" @click="emit('open-habit-journal', habit.id, date)">记录 / 时间线</button>
               </div>
               <button :id="`calendar-day-edit-habit-${habit.id}`" type="button" :aria-label="`编辑习惯：${habit.title}`" class="shrink-0 rounded px-1 py-0.5 text-xs font-semibold text-indigo-600 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400" @click="emit('edit-habit', habit.id)">编辑</button>
             </div>

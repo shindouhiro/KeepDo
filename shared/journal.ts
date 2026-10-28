@@ -12,9 +12,13 @@ export const journalInputSchema = z.object({
   operationId: z.uuid(),
 })
 export interface JournalImage { id: string; url: string }
-export interface GoalJournalEntry {
+export type JournalSubjectType = 'goal' | 'habit'
+export interface JournalEntry {
   id: string
-  goalId: string
+  subjectType: JournalSubjectType
+  subjectId: string
+  goalId?: string
+  habitId?: string
   date: string
   content: string
   images: JournalImage[]
@@ -22,10 +26,10 @@ export interface GoalJournalEntry {
   updatedAt: string
   version: number
 }
-export interface JournalPage { entries: GoalJournalEntry[]; nextCursor: string | null }
+export interface JournalPage { entries: JournalEntry[]; nextCursor: string | null }
 export type JournalDates = Record<string, string[]>
-export function getGoalJournalDates(dates: JournalDates, goalId: string): string[] {
-  return Object.hasOwn(dates, goalId) ? dates[goalId]! : []
+export function getJournalDates(dates: JournalDates, subjectId: string): string[] {
+  return Object.hasOwn(dates, subjectId) ? dates[subjectId]! : []
 }
 
 export function getJournalImageType(bytes: Uint8Array): string | null {
@@ -35,8 +39,8 @@ export function getJournalImageType(bytes: Uint8Array): string | null {
   return null
 }
 
-export function groupJournalEntries(entries: GoalJournalEntry[]) {
-  const groups = new Map<string, GoalJournalEntry[]>()
+export function groupJournalEntries(entries: JournalEntry[]) {
+  const groups = new Map<string, JournalEntry[]>()
   for (const entry of [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))) {
     const group = groups.get(entry.date) || []
     group.push(entry)

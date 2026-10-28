@@ -15,18 +15,21 @@ const emit = defineEmits<{
 const store = useKeepDoStore()
 
 const title = ref('')
+const description = ref('')
 const goalId = ref<string>('')
 const targetPerDay = ref(1)
 const unit = ref('次')
 const color = ref('indigo')
 
 watch(
-  () => props.habitIdToEdit,
-  (id) => {
+  [() => props.habitIdToEdit, () => props.isOpen],
+  ([id, open]) => {
+    if (!open) return
     if (id) {
       const habit = store.habits.find(h => h.id === id)
       if (habit) {
         title.value = habit.title
+        description.value = habit.description || ''
         goalId.value = habit.goalId || ''
         targetPerDay.value = habit.targetPerDay
         unit.value = habit.unit
@@ -34,6 +37,7 @@ watch(
       }
     } else {
       title.value = ''
+      description.value = ''
       goalId.value = ''
       targetPerDay.value = 1
       unit.value = '次'
@@ -49,6 +53,7 @@ function handleSave() {
   if (props.habitIdToEdit) {
     store.updateHabit(props.habitIdToEdit, {
       title: title.value.trim(),
+      description: description.value.trim(),
       goalId: goalId.value || null,
       targetPerDay: Number(targetPerDay.value),
       unit: unit.value.trim() || '次',
@@ -57,6 +62,7 @@ function handleSave() {
   } else {
     store.addHabit({
       title: title.value.trim(),
+      description: description.value.trim(),
       goalId: goalId.value || null,
       targetPerDay: Number(targetPerDay.value),
       unit: unit.value.trim() || '次',
@@ -77,7 +83,7 @@ function handleDelete() {
 
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl transition-all dark:bg-[#121824] dark:border dark:border-slate-800">
+    <div class="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl transition-all dark:bg-[#121824] dark:border dark:border-slate-800">
       <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
         <div class="flex items-center gap-2">
           <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-500 dark:bg-amber-950/50">
@@ -109,6 +115,12 @@ function handleDelete() {
             placeholder="例如：早读 30 分钟、喝足 2000ml 水、健身"
             class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
           />
+        </div>
+
+        <div>
+          <label for="habit-description" class="block text-xs font-bold text-slate-700 dark:text-slate-300">习惯描述（可选）</label>
+          <textarea id="habit-description" v-model="description" maxlength="5000" rows="3" placeholder="写下坚持这个习惯的原因、方法或注意事项…" class="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm leading-6 text-slate-800 focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"></textarea>
+          <p class="mt-1 text-[11px] leading-5 text-slate-400">当天的文字与图片可在习惯卡片的「记录 / 时间线」中添加。</p>
         </div>
 
         <!-- 关联长期目标 -->
