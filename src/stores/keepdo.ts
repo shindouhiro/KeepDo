@@ -7,6 +7,9 @@ import { api, ApiError } from '../lib/api'
 import { appDataSchema, emptyAppData } from '../../shared/schema'
 import { getDailyActionSummary } from '../../shared/calendar'
 import { getGoalCheckInUpdate, isGoalDayCounted } from '../../shared/goal-checkins'
+import { exportCompleteBackup } from '../lib/backup'
+import { parseBackup } from '../../shared/backup'
+import type { BackupManifest, CompleteBackup } from '../../shared/backup'
 
 const STORAGE_KEY = 'keepdo_app_data_v1'
 
@@ -161,12 +164,14 @@ export const useKeepDoStore = defineStore('keepdo', () => {
   const categories = ref<string[]>(initialData.categories)
   const isReady = ref(false)
   const isLoading = ref(false)
+  const isRestoring = ref(false)
   const loadError = ref('')
   const syncState = ref<'saved' | 'saving' | 'error' | 'conflict'>('saved')
   const syncError = ref('')
   const sessionExpired = ref(false)
   const hasLegacyData = ref(Boolean(localStorage.getItem(STORAGE_KEY)))
   const version = ref(0)
+  const backupRestoreRevision = ref(0)
   const editSequence = ref(0)
   const savedSequence = ref(0)
   const hasUnsavedChanges = computed(() => editSequence.value !== savedSequence.value)
@@ -184,6 +189,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     categories.value = data.categories
   }
   async function loadData() {
+    if (isRestoring.value) return
     if (hasUnsavedChanges.value) throw new Error('请先保存或导出未保存的修改')
     const requestEpoch = ++epoch
     isLoading.value = true
@@ -191,7 +197,7 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     try {
       const result = await api<{ data: AppData; version: number }>('/api/data')
       const parsed = appDataSchema.parse(result.data)
-      if (epoch !== requestEpoch || hasUnsavedChanges.value) return
+      if (epoch !== requestEpoch || hasUnsavedChanges.value || isRestoring.value) return
       applyData(parsed)
       version.value = result.version
       editSequence.value = 0
@@ -484,21 +490,42 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     }
   }
 
-  // ------------------ Backup / Import ------------------
-  function exportDataAsJSON(): string {
-    const data: AppData = {
-      goals: goals.value,
-      habits: habits.value,
-      todos: todos.value,
-      categories: categories.value
-    }
-    return JSON.stringify(data, null, 2)
+  // 完整备份包含云端图文记录，基础快照包含当前页面未保存的修改。
+  function exportLocalDataAsJSON(): string {
+    return JSON.stringify(snapshot(), null, 2)
+  }
+
+  async function exportDataAsJSON(onProgress?: (message: string) => void): Promise<string> {
+    return exportCompleteBackup(JSON.parse(exportLocalDataAsJSON()), onProgress)
+  }
+
+  async function restoreCompleteBackup(backup: CompleteBackup, point: BackupManifest): Promise<void> {
+    if (isRestoring.value) throw new Error('正在恢复备份，请等待完成')
+    isRestoring.value = true
+    try {
+      await flushSync()
+      if (version.value !== point.version) throw new Error('确认期间基础数据发生变化，请重新选择备份文件并确认恢复')
+      const requestEpoch = epoch
+      const sequence = editSequence.value
+      const result = await api<{ version: number }>('/api/backup', {
+        method: 'PUT', body: JSON.stringify({ backup, version: version.value, journalRevision: point.journalRevision }),
+        signal: AbortSignal.timeout(120_000),
+      })
+      if (epoch !== requestEpoch) throw new Error('账号状态已变化，请重新登录并检查恢复结果')
+      if (sequence !== editSequence.value) throw new Error('备份已恢复到云端，页面又有新修改，请先导出当前页面基础数据再刷新')
+      applyData(appDataSchema.parse(backup))
+      version.value = result.version
+      backupRestoreRevision.value++
+      syncState.value = 'saved'
+      syncError.value = ''
+    } finally { isRestoring.value = false }
   }
 
   function importDataFromJSON(jsonString: string): boolean {
     try {
-      const parsed = appDataSchema.parse(JSON.parse(jsonString))
-      applyData(parsed)
+      const parsed = parseBackup(JSON.parse(jsonString))
+      if (parsed.kind !== 'legacy') return false
+      applyData(parsed.data)
       scheduleSave()
       return true
     } catch (e) {
@@ -517,8 +544,9 @@ export const useKeepDoStore = defineStore('keepdo', () => {
   }
 
   return {
-    isReady, isLoading, loadError, syncState, syncError, sessionExpired,
+    isReady, isLoading, isRestoring, loadError, syncState, syncError, sessionExpired,
     hasUnsavedChanges, hasLegacyData, loadData, flushSync, reloadData, clearAccount, importLegacyData,
+    backupRestoreRevision,
     goals,
     habits,
     todos,
@@ -546,6 +574,8 @@ export const useKeepDoStore = defineStore('keepdo', () => {
     deleteTodo,
     updateTodo,
     exportDataAsJSON,
+    exportLocalDataAsJSON,
+    restoreCompleteBackup,
     importDataFromJSON,
     resetToSample
   }

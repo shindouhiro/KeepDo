@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ImagePlus, LoaderCircle, X, PenLine } from '@lucide/vue'
+import { ImagePlus, LoaderCircle, X, PenLine, Trash2 } from '@lucide/vue'
 import type { JournalEntry } from '../../../shared/journal'
 import { JOURNAL_IMAGE_COUNT } from '../../../shared/journal'
 import type { JournalDraft } from '../../composables/useJournal'
 import { prepareJournalImage } from '../../lib/journal-images'
 
 const props = defineProps<{ date: string; entry: JournalEntry | null; saving: boolean; error: string }>()
-const emit = defineEmits<{ save: [draft: JournalDraft]; cancel: []; dirty: [dirty: boolean] }>()
+const emit = defineEmits<{ save: [draft: JournalDraft]; cancel: []; delete: [entry: JournalEntry]; dirty: [dirty: boolean] }>()
 const content = ref(props.entry?.content || '')
 const existing = ref([...(props.entry?.images || [])])
 const pending = ref<Array<{ id: string; file: File; url: string }>>([])
@@ -81,9 +81,10 @@ onBeforeUnmount(() => { disposed = true; pending.value.forEach(image => URL.revo
       </div>
     </fieldset>
     <p v-if="fileError || error" role="alert" class="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">{{ fileError || error }}</p>
-    <div class="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800">
       <span class="text-[10px] text-slate-400" role="status">{{ processing ? '正在处理图片…' : saving ? '正在保存图文…' : dirty ? '草稿尚未保存' : '文字和图片都可以单独记录' }}</span>
-      <div class="flex shrink-0 items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <button v-if="entry" id="journal-delete-editing" type="button" :disabled="saving || processing" aria-haspopup="dialog" class="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-rose-600 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-40 dark:text-rose-400 dark:hover:bg-rose-950/30" @click="emit('delete', entry)"><Trash2 class="h-3.5 w-3.5" />删除记录</button>
         <button v-if="entry" id="journal-cancel-edit" type="button" :disabled="saving || processing" class="rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" @click="emit('cancel')">取消编辑</button>
         <button id="journal-save-entry" type="submit" :disabled="!canSave" class="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-medium text-white transition hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"><LoaderCircle v-if="saving || processing" class="h-3 w-3 animate-spin" />{{ entry ? '保存修改' : '保存记录' }}</button>
       </div>

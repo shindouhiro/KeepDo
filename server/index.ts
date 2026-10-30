@@ -3,6 +3,7 @@ import { getUser, handleAuth } from './auth.ts'
 import { HttpError, assertSameOrigin, json, readBody } from './http.ts'
 import { saveDataSchema } from '../shared/schema.ts'
 import { handleJournal } from './journal.ts'
+import { handleBackup } from './backup.ts'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -14,6 +15,7 @@ export default {
       if (path === '/api/health' && request.method === 'GET') return json({ status: 'ok' })
       const user = await getUser(request, env)
       if (!user) throw new HttpError(401, '请先登录')
+      if (path === '/api/backup') return await handleBackup(request, env, user)
       const journal = await handleJournal(request, env, user, path)
       if (journal) return journal
       if (path !== '/api/data') throw new HttpError(404, '接口不存在')

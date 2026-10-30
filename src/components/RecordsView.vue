@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref } from 'vue'
 import { BookOpen, Clock3, Flame, LoaderCircle, RefreshCw, Target } from '@lucide/vue'
 import type { JournalEntry, JournalFilter, JournalImage } from '../../shared/journal'
 import { useJournalFeed } from '../composables/useJournalFeed'
+import { useJournalDeletion } from '../composables/useJournalDeletion'
 import { useKeepDoStore } from '../stores/keepdo'
 import JournalTimeline from './journal/JournalTimeline.vue'
 
 const JournalImageViewer = defineAsyncComponent(() => import('./journal/JournalImageViewer.vue'))
+const JournalDeleteDialog = defineAsyncComponent(() => import('./journal/JournalDeleteDialog.vue'))
 const store = useKeepDoStore()
 const filter = ref<JournalFilter>('all')
 const feed = useJournalFeed(() => filter.value)
 const preview = ref<JournalImage | null>(null)
+const deletedMessage = ref('')
+const deletion = useJournalDeletion(entry => {
+  feed.removeEntry(entry.id)
+  if (entry.images.some(image => image.id === preview.value?.id)) preview.value = null
+  deletedMessage.value = '记录已删除'
+  void nextTick(() => document.getElementById('records-refresh')?.focus())
+})
 const filters: Array<{ value: JournalFilter; label: string }> = [
   { value: 'all', label: '全部' }, { value: 'goal', label: '目标' }, { value: 'habit', label: '习惯' },
 ]
@@ -44,9 +53,10 @@ function subjectTitle(entry: JournalEntry) {
     </header>
 
     <div v-if="feed.error.value" role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">{{ feed.error.value }}<button id="records-retry" type="button" :disabled="feed.loading.value" class="ml-2 rounded underline focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:opacity-40" @click="feed.load()">重新加载</button></div>
+    <p v-if="deletedMessage" role="status" class="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">{{ deletedMessage }}</p>
     <p v-if="feed.loading.value && !feed.entries.value.length" role="status" class="flex items-center justify-center gap-2 py-16 text-sm text-slate-400"><LoaderCircle class="h-4 w-4 animate-spin" />正在整理你的记录…</p>
     <div v-else-if="feed.entries.value.length" :aria-busy="feed.loading.value">
-      <JournalTimeline :entries="feed.entries.value" subject-label="记录" :editable="false" @preview="preview = $event">
+      <JournalTimeline :entries="feed.entries.value" subject-label="记录" :editable="false" :disabled="deletion.deleting.value" @delete="deletion.request" @preview="preview = $event">
         <template #source="{ entry }">
           <div class="flex min-w-0 items-start gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
             <span class="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold" :class="entry.subjectType === 'goal' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'"><component :is="entry.subjectType === 'goal' ? Target : Flame" class="h-3 w-3" />{{ entry.subjectType === 'goal' ? '目标' : '习惯' }}</span>
@@ -63,5 +73,6 @@ function subjectTitle(entry: JournalEntry) {
     </div>
     <button v-if="feed.cursor.value" id="records-load-more" type="button" :disabled="feed.loading.value" class="mx-auto flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-xs font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:opacity-40 dark:border-slate-700 dark:bg-[#121824] dark:text-slate-300 dark:hover:bg-slate-800" @click="feed.load(true)"><LoaderCircle v-if="feed.loading.value" class="h-3.5 w-3.5 animate-spin" />{{ feed.loading.value ? '正在载入…' : '查看更早的记录' }}</button>
     <JournalImageViewer v-if="preview" :image="preview" @close="preview = null" />
+    <JournalDeleteDialog v-if="deletion.pending.value" :entry="deletion.pending.value" :deleting="deletion.deleting.value" :error="deletion.error.value" @cancel="deletion.cancel" @confirm="deletion.confirm" />
   </section>
 </template>

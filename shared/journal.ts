@@ -11,6 +11,7 @@ export const journalInputSchema = z.object({
   version: z.number().int().nonnegative(),
   operationId: z.uuid(),
 })
+export const journalDeleteSchema = z.object({ version: z.number().int().positive() })
 export interface JournalImage { id: string; url: string }
 export type JournalSubjectType = 'goal' | 'habit'
 export type JournalFilter = 'all' | JournalSubjectType

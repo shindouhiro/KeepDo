@@ -14,7 +14,7 @@
     "build": "vue-tsc -b && tsc -p tsconfig.worker.json && vite build",
     "build:cloudflare": "pnpm build --mode cloudflare",
     "preview": "vite preview",
-    "deploy": "pnpm build:cloudflare && wrangler deploy",
+    "deploy": "pnpm build:cloudflare && pnpm db:migrate:remote && wrangler deploy",
     "deploy:check": "pnpm build:cloudflare && wrangler deploy --dry-run",
     "cf:login": "wrangler login",
     "cf:whoami": "wrangler whoami"

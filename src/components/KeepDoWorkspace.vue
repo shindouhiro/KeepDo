@@ -15,10 +15,10 @@ const RecordsView = defineAsyncComponent(() => import('./RecordsView.vue'))
 
 const store = useKeepDoStore()
 function warnBeforeUnload(event: BeforeUnloadEvent) {
-  if (store.hasUnsavedChanges) { event.preventDefault(); event.returnValue = '' }
+  if (store.hasUnsavedChanges || store.isRestoring) { event.preventDefault(); event.returnValue = '' }
 }
 function refreshOnFocus() {
-  if (store.isReady && !store.hasUnsavedChanges && !store.isLoading) void store.loadData()
+  if (store.isReady && !store.hasUnsavedChanges && !store.isLoading && !store.isRestoring) void store.loadData()
 }
 onMounted(() => {
   void store.loadData()
@@ -87,7 +87,7 @@ function openEditHabitModal(habitId: string) {
           @edit-goal="openEditGoalModal"
         />
 
-        <RecordsView v-else-if="store.activeTab === 'records'" />
+        <RecordsView v-else-if="store.activeTab === 'records'" :key="store.backupRestoreRevision" />
 
         <!-- 页面 4：统计复盘 -->
         <StatsView
