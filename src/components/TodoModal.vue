@@ -6,7 +6,7 @@ import { useKeepDoStore } from '../stores/keepdo'
 import { useNativeDialog } from '../composables/useNativeDialog'
 
 const props = defineProps<{ isOpen: boolean; todo: Todo | null; date: string }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; saved: [] }>()
 const store = useKeepDoStore()
 const { handleClose, handleBackdrop } = useNativeDialog('todoDialog', () => props.isOpen, () => emit('close'))
 const title = ref('')
@@ -40,6 +40,7 @@ async function save() {
       draftId.value = store.addTodo(title.value.trim(), priority.value, goalId.value || null, date.value)
     }
     await store.flushSync()
+    emit('saved')
     emit('close')
   } catch (cause) { error.value = cause instanceof Error ? cause.message : '保存失败，请重试' }
   finally { busy.value = false }
@@ -49,13 +50,13 @@ async function save() {
 <template>
   <dialog ref="todoDialog" id="todo-editor-dialog" aria-labelledby="todo-editor-heading" class="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-[#121824] dark:text-white" @close="handleClose" @click="!busy && handleBackdrop($event)" @cancel="busy && $event.preventDefault()">
     <div class="flex items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-      <h2 id="todo-editor-heading" class="flex items-center gap-2 text-base font-bold"><ListTodo class="h-5 w-5 text-indigo-500" />{{ todo ? '待办详情与编辑' : '添加当日待办' }}</h2>
+      <h2 id="todo-editor-heading" class="flex items-center gap-2 text-base font-bold"><ListTodo class="h-5 w-5 text-indigo-500" />{{ todo ? '待办详情与编辑' : '快捷添加行动' }}</h2>
       <button id="todo-editor-close" type="button" :disabled="busy" aria-label="关闭待办编辑" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:opacity-40 dark:hover:bg-slate-800" @click="emit('close')"><X class="h-4 w-4" /></button>
     </div>
     <form id="todo-editor-form" class="mt-5 space-y-4" @submit.prevent="save">
       <div>
         <label for="todo-editor-title" class="block text-xs font-semibold text-slate-600 dark:text-slate-300">事项内容</label>
-        <textarea id="todo-editor-title" v-model="title" required maxlength="200" rows="3" :disabled="busy" class="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white" placeholder="写下需要完成的具体事项"></textarea>
+        <textarea id="todo-editor-title" v-model="title" autofocus required maxlength="200" rows="3" :disabled="busy" class="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white" placeholder="写下需要完成的具体事项"></textarea>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
