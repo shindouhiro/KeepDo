@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import type { Env, User } from './types.ts'
 import type { JournalEntry, JournalImage, JournalSubjectType } from '../shared/journal.ts'
-import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_BODY_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, getJournalImageType, journalInputSchema } from '../shared/journal.ts'
-import { HttpError, json, readLimitedBytes } from './http.ts'
+import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_BODY_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, getJournalImageType, journalDeleteSchema, journalInputSchema } from '../shared/journal.ts'
+import { HttpError, json, readBody, readLimitedBytes } from './http.ts'
 
 interface EntryRow {
   id: string; goal_id: string; subject_type: JournalSubjectType; date: string; content: string
@@ -90,6 +90,22 @@ async function saveEntry(request: Request, env: Env, user: User, subjectType: Jo
   return json({ entry: (await entriesWithImages(env, user.id, [saved]))[0] }, !existing && results[0]?.meta.changes ? 201 : 200)
 }
 
+async function deleteEntry(request: Request, env: Env, user: User, subjectType: JournalSubjectType, subjectId: string, entryId: string) {
+  if (!uuid.safeParse(entryId).success) throw new HttpError(400, '记录标识不正确')
+  const input = journalDeleteSchema.safeParse(await readBody(request))
+  if (!input.success) throw new HttpError(400, '记录版本不正确，请刷新后重试')
+  // 版本检查与删除原子执行，图片通过外键级联清理；已删除主体的历史记录也可单独删除。
+  const deleted = await env.DB.prepare('DELETE FROM goal_journal_entries WHERE id = ? AND user_id = ? AND subject_type = ? AND goal_id = ? AND version = ? RETURNING id')
+    .bind(entryId, user.id, subjectType, subjectId, input.data.version).first<{ id: string }>()
+  if (!deleted) {
+    const existing = await env.DB.prepare('SELECT id FROM goal_journal_entries WHERE id = ? AND user_id = ? AND subject_type = ? AND goal_id = ?')
+      .bind(entryId, user.id, subjectType, subjectId).first()
+    if (!existing) throw new HttpError(404, '记录不存在或已删除，请刷新时间线')
+    throw new HttpError(409, '这条记录已在其他设备更新，请刷新时间线后重新确认删除')
+  }
+  return json({ success: true })
+}
+
 async function listEntries(env: Env, user: User, url: URL, subject?: { type: JournalSubjectType; id: string }) {
   const conditions = ['user_id = ?']
   const values: string[] = [user.id]
@@ -142,6 +158,7 @@ export async function handleJournal(request: Request, env: Env, user: User, path
   try { subjectId = decodeURIComponent(match[2]!) }
   catch { throw new HttpError(400, '日记主体标识不正确') }
   if (match[3] && request.method === 'PUT') return saveEntry(request, env, user, subjectType, subjectId, match[3])
+  if (match[3] && request.method === 'DELETE') return deleteEntry(request, env, user, subjectType, subjectId, match[3])
   if (!match[3] && request.method === 'GET') {
     await requireSubject(env, user.id, subjectType, subjectId)
     return listEntries(env, user, url, { type: subjectType, id: subjectId })

@@ -46,6 +46,13 @@ export function useJournal(subjectId: () => string, subjectType: () => JournalSu
     }
     return result.entry
   }
+  function removeEntry(entryId: string) {
+    generation++
+    controller?.abort()
+    loading.value = false
+    error.value = ''
+    entries.value = entries.value.filter(entry => entry.id !== entryId)
+  }
   watch([subjectId, subjectType, isOpen], ([id, , open]) => {
     generation++
     controller?.abort()
@@ -56,5 +63,5 @@ export function useJournal(subjectId: () => string, subjectType: () => JournalSu
     if (id && open) void load()
   }, { immediate: true })
   onBeforeUnmount(() => { generation++; controller?.abort() })
-  return { entries, cursor, loading, error, load, save }
+  return { entries, cursor, loading, error, load, save, removeEntry }
 }

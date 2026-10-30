@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { getJournalImageType, journalInputSchema, groupJournalEntries, getJournalDates } from '../shared/journal.ts'
+import { getJournalImageType, journalInputSchema, journalDeleteSchema, groupJournalEntries, getJournalDates } from '../shared/journal.ts'
 import type { JournalEntry } from '../shared/journal.ts'
 import { getCalendarPlans, getGoalsForDate } from '../shared/calendar.ts'
 import type { Goal, Habit } from '../src/types/index.ts'
@@ -8,6 +8,12 @@ import { appDataSchema, emptyAppData } from '../shared/schema.ts'
 import { readLimitedBytes, HttpError } from '../server/http.ts'
 
 const input = { date: '2026-10-28', content: ' 今天完成了初稿 ', keepImageIds: [], version: 0, operationId: crypto.randomUUID() }
+test('删除记录必须提供已保存记录的正整数版本', () => {
+  assert.deepEqual(journalDeleteSchema.parse({ version: 2 }), { version: 2 })
+  for (const version of [undefined, null, 0, -1, 1.5, '1']) {
+    assert.equal(journalDeleteSchema.safeParse({ version }).success, false)
+  }
+})
 test('日记输入校验日期、文字长度、版本号和图片引用', () => {
   assert.equal(journalInputSchema.parse(input).content, '今天完成了初稿')
   for (const changes of [{ date: '2026-02-31' }, { content: '字'.repeat(5001) }, { version: -1 }, { keepImageIds: ['not-an-id'] }, { keepImageIds: Array(2).fill(input.operationId) }, { operationId: 'invalid' }]) {

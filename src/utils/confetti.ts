@@ -1,6 +1,7 @@
 import confetti from 'canvas-confetti'
 
 export function triggerCelebration() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   const count = 200
   const defaults = {
     origin: { y: 0.7 },

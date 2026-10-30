@@ -5,7 +5,7 @@ import type { Goal } from '../types'
 import { getGoalDateStatus, getGoalProgressPercent } from '../../shared/calendar'
 import GoalCheckInButton from './GoalCheckInButton.vue'
 
-const props = withDefaults(defineProps<{ goals: Goal[]; date: string; detailed?: boolean; idPrefix?: string }>(), {
+const props = withDefaults(defineProps<{ goals: Goal[]; date: string; detailed?: boolean; stacked?: boolean; idPrefix?: string }>(), {
   detailed: false,
   idPrefix: 'calendar',
 })
@@ -37,7 +37,7 @@ const statusClasses = {
       </div>
       <button :id="`${idPrefix}-show-all-goals`" type="button" class="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400 dark:hover:bg-indigo-950/50" @click="emit('show-goals')">全部目标<ArrowUpRight class="h-3.5 w-3.5" /></button>
     </div>
-    <div class="grid gap-3" :class="detailed ? 'grid-cols-1' : 'sm:grid-cols-2'">
+    <div class="grid gap-3" :class="detailed ? 'grid-cols-1' : stacked ? 'sm:grid-cols-2 xl:grid-cols-1' : 'sm:grid-cols-2'">
       <article v-for="entry in entries" :key="entry.goal.id" :id="`${idPrefix}-goal-${entry.goal.id}`" class="min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-[#121824]">
         <div class="flex items-start justify-between gap-3">
           <h3 class="min-w-0 break-words text-sm leading-6 font-bold text-slate-900 dark:text-white">{{ entry.goal.title }}</h3>

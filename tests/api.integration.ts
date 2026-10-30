@@ -4,6 +4,8 @@ import { randomBytes } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { emptyAppData } from '../shared/schema.ts'
 import type { JournalEntry, JournalPage } from '../shared/journal.ts'
+import { bytesToBase64, completeBackupSchema } from '../shared/backup.ts'
+import type { BackupManifest } from '../shared/backup.ts'
 
 const origin = process.env.KEEPDO_TEST_ORIGIN || 'http://localhost:8787'
 const local = ['localhost', '127.0.0.1'].includes(new URL(origin).hostname)
@@ -234,6 +236,163 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     assert.deepEqual(other, { entries: [], nextCursor: null })
     const otherFiltered = await (await request('/api/journal?type=habit', 'GET', undefined, cookieB)).json() as JournalPage
     assert.deepEqual(otherFiltered.entries, [])
+  })
+  await t.test('删除图文记录校验账号与版本、清理图片并准确更新日期标记', async () => {
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY1sAAAAASUVORK5CYII=', 'base64')
+    const before = await (await request('/api/data', 'GET', undefined, cookieA)).json()
+    for (const collection of ['goals', 'habits']) {
+      const path = `/api/${collection}/goal-checkin-test/journal`
+      const id = crypto.randomUUID()
+      const input = { date: '2026-10-29', content: '这是一条需要删除的错误记录', keepImageIds: [] as string[], version: 0, operationId: crypto.randomUUID() }
+      async function save(id: string, changes = {}) {
+        const form = new FormData()
+        form.set('entry', JSON.stringify({ ...input, ...changes }))
+        if (!Object.keys(changes).length) form.append('images', new Blob([png], { type: 'image/png' }), 'delete-test.png')
+        const response = await fetch(`${origin}${path}/${id}`, { method: 'PUT', headers: { Origin: origin, Cookie: cookieA }, body: form })
+        assert.ok(response.ok, await response.clone().text())
+        return (await response.json() as { entry: JournalEntry }).entry
+      }
+      const first = await save(id)
+      const second = await save(crypto.randomUUID())
+      const body = { version: first.version }
+      assert.equal((await request(`${path}/${id}`, 'DELETE', body)).status, 401)
+      assert.equal((await request(`${path}/${id}`, 'DELETE', body, cookieB)).status, 404)
+      assert.equal((await request(`${path}/${id}`, 'DELETE', body, cookieA, 'https://evil.example')).status, 403)
+      assert.equal((await request(`${path}/invalid`, 'DELETE', body, cookieA)).status, 400)
+      assert.equal((await request(`${path}/${id}`, 'DELETE', { version: 0 }, cookieA)).status, 400)
+      assert.equal((await request(`${path}/${id}`, 'DELETE', {}, cookieA)).status, 400)
+      const wrongCollection = collection === 'goals' ? 'habits' : 'goals'
+      assert.equal((await request(`/api/${wrongCollection}/goal-checkin-test/journal/${id}`, 'DELETE', body, cookieA)).status, 404)
+      assert.equal((await request(`/api/${collection}/wrong-subject/journal/${id}`, 'DELETE', body, cookieA)).status, 404)
+      const edited = await save(id, { version: first.version, keepImageIds: first.images.map(image => image.id), operationId: crypto.randomUUID(), content: '另一台设备已经编辑' })
+      assert.equal((await request(`${path}/${id}`, 'DELETE', body, cookieA)).status, 409)
+      assert.equal((await request(first.images[0]!.url, 'GET', undefined, cookieA)).status, 200)
+      const removed = await request(`${path}/${id}`, 'DELETE', { version: edited.version }, secondSession)
+      assert.equal(removed.status, 200, await removed.clone().text())
+      assert.deepEqual(await removed.json(), { success: true })
+      assert.equal((await request(first.images[0]!.url, 'GET', undefined, cookieA)).status, 404)
+      const summaryKey = collection === 'goals' ? 'dates' : 'habitDates'
+      const summary = await (await request('/api/journal/summary', 'GET', undefined, cookieA)).json() as Record<string, Record<string, string[]>>
+      assert.ok(summary[summaryKey]!['goal-checkin-test']!.includes(input.date))
+      const feed = await (await request('/api/journal', 'GET', undefined, cookieA)).json() as JournalPage
+      assert.ok(!feed.entries.some(entry => entry.id === id))
+      assert.ok(feed.entries.some(entry => entry.id === second.id))
+      assert.equal((await request(`${path}/${second.id}`, 'DELETE', { version: second.version }, cookieA)).status, 200)
+      assert.equal((await request(second.images[0]!.url, 'GET', undefined, cookieA)).status, 404)
+      const after = await (await request('/api/journal/summary', 'GET', undefined, cookieA)).json() as Record<string, Record<string, string[]>>
+      assert.ok(!after[summaryKey]!['goal-checkin-test']?.includes(input.date))
+      assert.equal((await request(`${path}/${id}`, 'DELETE', { version: edited.version }, cookieA)).status, 404)
+    }
+    assert.deepEqual(await (await request('/api/data', 'GET', undefined, cookieA)).json(), before)
+  })
+  await t.test('完整备份覆盖全部历史日记及图片，跨账号原子恢复并拒绝损坏和过期请求', async () => {
+    assert.equal((await request('/api/backup')).status, 401)
+    assert.equal((await request('/api/backup', 'PUT', {})).status, 401)
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY1sAAAAASUVORK5CYII=', 'base64')
+    for (const collection of ['goals', 'habits']) {
+      const form = new FormData()
+      form.set('entry', JSON.stringify({ date: '2026-10-29', content: `完整备份验证 ${collection}`, keepImageIds: [], version: 0, operationId: crypto.randomUUID() }))
+      form.append('images', new Blob([png], { type: 'image/png' }), 'backup.png')
+      form.append('images', new Blob([png], { type: 'image/png' }), 'backup-second.png')
+      const saved = await fetch(`${origin}/api/${collection}/goal-checkin-test/journal/${crypto.randomUUID()}`, { method: 'PUT', headers: { Origin: origin, Cookie: cookieA }, body: form })
+      assert.equal(saved.status, 201, await saved.clone().text())
+    }
+    const accountA = await (await request('/api/data', 'GET', undefined, cookieA)).json() as { data: ReturnType<typeof emptyAppData>; version: number }
+    // 主体移除后仍应备份其历史记录。
+    const withoutSubjects = { ...emptyAppData(), todos: accountA.data.todos }
+    const removed = await request('/api/data', 'PUT', { data: withoutSubjects, version: accountA.version }, cookieA)
+    assert.equal(removed.status, 200, await removed.clone().text())
+    const manifest = await (await request('/api/backup', 'GET', undefined, cookieA)).json() as BackupManifest
+    assert.equal(manifest.entries.length, 26)
+    assert.ok(manifest.entries.some(entry => entry.subjectType === 'goal'))
+    assert.ok(manifest.entries.some(entry => entry.subjectType === 'habit'))
+    assert.equal(manifest.entries.filter(entry => entry.images.length === 2).length, 2)
+    const journal = []
+    for (const entry of manifest.entries) {
+      const images = []
+      for (const image of entry.images) {
+        const response = await request(image.url, 'GET', undefined, cookieA)
+        assert.equal(response.status, 200)
+        const bytes = new Uint8Array(await response.arrayBuffer())
+        assert.equal(bytes.byteLength, image.byteSize)
+        images.push({ id: image.id, mimeType: image.mimeType, data: bytesToBase64(bytes) })
+      }
+      journal.push({ ...entry, images })
+    }
+    const backup = completeBackupSchema.parse({ ...withoutSubjects, format: 'keepdo-backup', backupVersion: 2, exportedAt: new Date().toISOString(), journal })
+    const point = await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest
+    assert.deepEqual(point.entries, [])
+    const input = { backup, version: point.version, journalRevision: point.journalRevision }
+    assert.equal((await request('/api/backup', 'PUT', input, cookieB, 'https://evil.example')).status, 403)
+    const corrupt = structuredClone(input)
+    corrupt.backup.journal.find(entry => entry.images.length)!.images[0]!.data = '%%%%'
+    assert.equal((await request('/api/backup', 'PUT', corrupt, cookieB)).status, 400)
+    assert.deepEqual(await (await request('/api/backup', 'GET', undefined, cookieB)).json(), point)
+    const restored = await request('/api/backup', 'PUT', input, cookieB)
+    assert.equal(restored.status, 200, await restored.clone().text())
+    assert.deepEqual(await restored.json(), { version: point.version + 1 })
+    const after = await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest
+    assert.equal(after.entries.length, backup.journal.length)
+    const originalIds = new Set(backup.journal.map(entry => entry.id))
+    assert.ok(after.entries.every(entry => !originalIds.has(entry.id)))
+    function contents(entries: Array<{ subjectType: string; subjectId: string; content: string; date: string; createdAt: string; updatedAt: string; version: number; images: unknown[] }>) {
+      return entries.map(entry => ({ subjectType: entry.subjectType, subjectId: entry.subjectId, content: entry.content, date: entry.date, createdAt: entry.createdAt, updatedAt: entry.updatedAt, version: entry.version, imageCount: entry.images.length }))
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    }
+    assert.deepEqual(contents(after.entries), contents(backup.journal))
+    for (const entry of after.entries) {
+      for (const image of entry.images) {
+        const response = await request(image.url, 'GET', undefined, cookieB)
+        assert.equal(response.status, 200)
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()), png)
+        assert.equal((await request(image.url, 'GET', undefined, cookieA)).status, 404)
+      }
+    }
+    assert.deepEqual((await (await request('/api/data', 'GET', undefined, cookieB)).json() as { data: unknown }).data, withoutSubjects)
+    // 即使被其他写入推进到 version + 1，过期恢复也不能越过写入令牌清理日记。
+    assert.equal((await request('/api/backup', 'PUT', input, cookieB)).status, 409)
+    assert.deepEqual(await (await request('/api/backup', 'GET', undefined, cookieB)).json(), after)
+    // 基础版本仍相同，但另一设备删除了日记，同样应阻止覆盖。
+    const toDelete = after.entries[0]!
+    const path = `/api/${toDelete.subjectType === 'goal' ? 'goals' : 'habits'}/${encodeURIComponent(toDelete.subjectId)}/journal/${toDelete.id}`
+    assert.equal((await request(path, 'DELETE', { version: toDelete.version }, cookieB)).status, 200)
+    const changed = await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest
+    assert.equal((await request('/api/backup', 'PUT', { backup, version: after.version, journalRevision: after.journalRevision }, cookieB)).status, 409)
+    assert.deepEqual(await (await request('/api/backup', 'GET', undefined, cookieB)).json(), changed)
+    // 使用当前快照再次恢复，应完整替换，不能追加重复记录。
+    const retry = await request('/api/backup', 'PUT', { backup, version: changed.version, journalRevision: changed.journalRevision }, cookieB)
+    assert.equal(retry.status, 200, await retry.clone().text())
+    const repeated = await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest
+    assert.equal(repeated.entries.length, backup.journal.length)
+    // 恢复无日记的完整备份要清空对应图片，但不影响来源账号。
+    const cleared = await request('/api/backup', 'PUT', { backup: { ...backup, journal: [] }, version: repeated.version, journalRevision: repeated.journalRevision }, cookieB)
+    assert.equal(cleared.status, 200, await cleared.clone().text())
+    const image = repeated.entries.find(entry => entry.images.length)!.images[0]!
+    assert.equal((await request(image.url, 'GET', undefined, cookieB)).status, 404)
+    assert.deepEqual((await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest).entries, [])
+    assert.deepEqual(await (await request('/api/backup', 'GET', undefined, cookieA)).json(), manifest)
+  })
+  await t.test('完整恢复支持超过基础接口 1 MB 限制的真实图片正文', async () => {
+    const bytes = new Uint8Array(400_000)
+    bytes.set([137, 80, 78, 71, 13, 10, 26, 10])
+    const point = await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest
+    const now = new Date().toISOString()
+    const backup = { ...emptyAppData(), format: 'keepdo-backup', backupVersion: 2, exportedAt: now, journal: [{
+      id: crypto.randomUUID(), subjectType: 'habit', subjectId: '历史习惯', date: '2026-10-29', content: '恢复较大的图文备份', createdAt: now, updatedAt: now, version: 1,
+      images: Array.from({ length: 3 }, () => ({ id: crypto.randomUUID(), mimeType: 'image/png', data: bytesToBase64(bytes) })),
+    }] }
+    const input = { backup, version: point.version, journalRevision: point.journalRevision }
+    assert.ok(JSON.stringify(input).length > 1_000_000)
+    const restored = await request('/api/backup', 'PUT', input, cookieB)
+    assert.equal(restored.status, 200, await restored.clone().text())
+    const after = await (await request('/api/backup', 'GET', undefined, cookieB)).json() as BackupManifest
+    assert.equal(after.entries.length, 1)
+    assert.equal(after.entries[0]!.images.length, 3)
+    for (const image of after.entries[0]!.images) {
+      const response = await request(image.url, 'GET', undefined, cookieB)
+      assert.equal(response.status, 200)
+      assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes)
+    }
   })
   await t.test('退出使原会话失效', async () => {
     assert.equal((await request('/api/auth/logout', 'POST', {}, cookieA)).status, 200)

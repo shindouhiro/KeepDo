@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Check, Pencil, Clock3, Images } from '@lucide/vue'
+import { Check, Pencil, Clock3, Images, Trash2 } from '@lucide/vue'
 import type { JournalEntry, JournalImage } from '../../../shared/journal'
 import { groupJournalEntries } from '../../../shared/journal'
 
-const props = withDefaults(defineProps<{ entries: JournalEntry[]; checkIns?: Record<string, boolean>; selectedDate?: string; subjectLabel?: string; editable?: boolean }>(), { selectedDate: '', subjectLabel: '目标', editable: true })
+const props = withDefaults(defineProps<{ entries: JournalEntry[]; checkIns?: Record<string, boolean>; selectedDate?: string; subjectLabel?: string; editable?: boolean; disabled?: boolean }>(), { selectedDate: '', subjectLabel: '目标', editable: true, disabled: false })
 defineSlots<{ source?(props: { entry: JournalEntry }): unknown }>()
-const emit = defineEmits<{ edit: [entry: JournalEntry]; preview: [image: JournalImage] }>()
+const emit = defineEmits<{ edit: [entry: JournalEntry]; delete: [entry: JournalEntry]; preview: [image: JournalImage] }>()
 const groups = computed(() => groupJournalEntries(props.entries))
 function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) }
 </script>
@@ -38,7 +38,10 @@ function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-
           </div>
           <div class="mt-3 flex items-center justify-between gap-2 text-[10px] text-slate-400">
             <span>{{ time(entry.createdAt) }}<span v-if="entry.version > 1"> · 已编辑</span></span>
-            <button v-if="editable" :id="`journal-edit-${entry.id}`" type="button" :aria-label="`编辑 ${entry.date} ${time(entry.createdAt)} 的记录`" class="inline-flex min-h-7 items-center gap-1 rounded-md px-1.5 hover:bg-slate-50 hover:text-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-400 dark:hover:bg-slate-800" @click="emit('edit', entry)"><Pencil class="h-3 w-3" />编辑</button>
+            <div class="flex items-center gap-1">
+              <button v-if="editable" :id="`journal-edit-${entry.id}`" type="button" :disabled="disabled" :aria-label="`编辑 ${entry.date} ${time(entry.createdAt)} 的记录`" class="inline-flex min-h-9 items-center gap-1 rounded-md px-2 hover:bg-slate-50 hover:text-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-400 disabled:opacity-40 dark:hover:bg-slate-800" @click="emit('edit', entry)"><Pencil class="h-3 w-3" />编辑</button>
+              <button :id="`journal-delete-${entry.id}`" type="button" :disabled="disabled" :aria-label="`删除 ${entry.date} ${time(entry.createdAt)} 的记录`" aria-haspopup="dialog" class="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-rose-500 hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-40 dark:text-rose-400 dark:hover:bg-rose-950/30" @click="emit('delete', entry)"><Trash2 class="h-3 w-3" />删除</button>
+            </div>
           </div>
         </article>
       </div>

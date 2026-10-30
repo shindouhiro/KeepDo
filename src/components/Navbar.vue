@@ -8,19 +8,21 @@ import {
   Moon,
   Sun,
   Settings,
-  Sparkles
+  Sparkles,
+  Plus
 } from '@lucide/vue'
 
 const store = useKeepDoStore()
 
 defineEmits<{
   (e: 'open-settings'): void
+  (e: 'quick-add'): void
 }>()
 </script>
 
 <template>
   <header class="sticky top-0 z-40 border-b border-slate-200/60 bg-white/75 backdrop-blur-xl transition-colors dark:border-slate-800/80 dark:bg-[#0B0F17]/80">
-    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:flex-nowrap">
+    <div class="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:flex-nowrap">
       <!-- 品牌 Logo -->
       <div class="flex shrink-0 items-center gap-3">
         <div class="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20 transition-transform hover:scale-105">
@@ -111,6 +113,7 @@ defineEmits<{
 
       <!-- 右侧快捷操作与主题 -->
       <div class="flex items-center gap-2">
+        <button id="nav-quick-add" type="button" aria-label="快捷添加行动，Command 或 Control 加 K" aria-keyshortcuts="Meta+K Control+K" aria-haspopup="dialog" aria-controls="todo-editor-dialog" title="快捷添加行动（⌘ / Ctrl + K）" class="flex min-h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3 text-xs font-semibold text-white transition hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500" @click="$emit('quick-add')"><Plus class="h-4 w-4" /><span>快捷添加</span><kbd class="hidden rounded border border-white/30 px-1 text-[10px] xl:inline">⌘ / Ctrl K</kbd></button>
         <!-- 今日完成度胶囊 -->
         <div class="hidden items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/60 px-3 py-1 text-xs font-medium text-slate-600 lg:flex dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
           <Sparkles class="h-3.5 w-3.5 text-amber-500" />

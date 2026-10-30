@@ -29,11 +29,19 @@ export function useJournalFeed(filter: () => JournalFilter) {
     } finally { if (requestGeneration === generation) loading.value = false }
   }
 
+  function removeEntry(entryId: string) {
+    generation++
+    controller?.abort()
+    loading.value = false
+    error.value = ''
+    entries.value = entries.value.filter(entry => entry.id !== entryId)
+  }
+
   watch(filter, () => {
     entries.value = []
     cursor.value = null
     void load()
   }, { immediate: true })
   onBeforeUnmount(() => { generation++; controller?.abort() })
-  return { entries, cursor, loading, error, load }
+  return { entries, cursor, loading, error, load, removeEntry }
 }

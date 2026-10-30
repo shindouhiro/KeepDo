@@ -55,7 +55,7 @@ async function importLegacy() {
 
 <template>
   <aside class="border-b border-slate-200/70 bg-white/90 px-4 py-2 text-xs dark:border-slate-800 dark:bg-slate-950/80" aria-label="账号与保存状态">
-    <div class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <div class="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div class="flex min-w-0 items-center gap-3">
         <span class="max-w-40 truncate font-semibold text-slate-700 dark:text-slate-200">{{ auth.user?.username }}</span>
         <span class="flex items-center gap-1.5 text-slate-500" role="status" aria-live="polite"><CloudUpload v-if="store.syncState === 'saving'" class="h-3.5 w-3.5 animate-pulse" /><CloudCheck v-else class="h-3.5 w-3.5" />{{ status }}</span>

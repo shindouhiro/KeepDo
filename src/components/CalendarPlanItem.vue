@@ -3,7 +3,7 @@ import { Check, Flame, ListTodo, Target } from '@lucide/vue'
 import type { CalendarPlan } from '../../shared/calendar'
 import GoalCheckInButton from './GoalCheckInButton.vue'
 
-defineProps<{ plan: CalendarPlan; date: string }>()
+defineProps<{ plan: CalendarPlan; date: string; compact?: boolean }>()
 const emit = defineEmits<{ inspect: []; 'check-in': [] }>()
 const kinds = {
   goal: { label: '目标', icon: Target, style: 'border-indigo-200/60 bg-indigo-50/70 text-indigo-800 hover:border-indigo-300 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-200' },
@@ -28,7 +28,7 @@ const kinds = {
       class="w-full min-w-0 rounded-lg px-2.5 pt-0.5 pb-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-500"
       @click="emit('inspect')"
     >
-      <span class="block text-xs leading-5 font-semibold whitespace-pre-wrap [overflow-wrap:anywhere]" :class="{ 'line-through decoration-current/30 opacity-65': plan.completed && plan.kind !== 'goal' }">{{ plan.title }}</span>
+      <span class="text-xs leading-5 font-semibold whitespace-pre-wrap [overflow-wrap:anywhere]" :class="[compact ? 'line-clamp-2' : 'block', { 'line-through decoration-current/30 opacity-65': plan.completed && plan.kind !== 'goal' }]">{{ plan.title }}</span>
       <span class="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] leading-4">
         <span class="opacity-65">{{ plan.detail }}</span>
         <span v-if="plan.checkedIn" class="font-medium text-emerald-700 dark:text-emerald-300">已打卡</span>
