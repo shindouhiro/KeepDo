@@ -137,13 +137,11 @@ function inspectPlan(kind: 'goal' | 'habit' | 'todo', id: string, date: string) 
             <button
               :id="`calendar-date-${day.date}`"
               type="button"
-              :aria-label="`查看 ${day.date} 详情，${day.plans.length} 项计划，${day.summary.total ? `行动已完成 ${day.summary.completed}/${day.summary.total}` : '尚未安排行动'}`"
+              :aria-label="`选择 ${day.date}，${day.plans.length} 项计划，${day.summary.total ? `行动已完成 ${day.summary.completed}/${day.summary.total}` : '尚未安排行动'}`"
               :aria-pressed="day.date === date"
               :aria-current="day.date === today ? 'date' : undefined"
-              aria-haspopup="dialog"
-              aria-controls="calendar-day-dialog"
               class="mb-2 flex min-h-11 w-full items-center justify-between gap-1 rounded-lg px-1 text-left focus-visible:outline-2 focus-visible:outline-indigo-500"
-              @click="emit('inspect-date', day.date)"
+              @click="emit('select-date', day.date)"
             >
               <span>
                 <span class="block text-[10px] font-medium text-slate-500 dark:text-slate-400">周{{ day.weekday }}</span>
@@ -152,7 +150,10 @@ function inspectPlan(kind: 'goal' | 'habit' | 'todo', id: string, date: string) 
               <span v-if="day.date === today" class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-300">今天</span>
               <span v-else-if="day.date === date" class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-300">已选</span>
             </button>
-            <DailyProgress class="mb-3" :summary="day.summary" compact />
+            <div class="mb-3 flex items-center justify-between">
+              <DailyProgress :summary="day.summary" compact />
+              <button :id="`calendar-quick-add-${day.date}`" type="button" :aria-label="`为 ${day.date} 添加计划`" class="flex min-h-7 items-center gap-0.5 rounded-lg px-1.5 text-indigo-600 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400 dark:hover:bg-indigo-950/50 transition-colors" @click="emit('new-todo', day.date)"><Plus class="h-3 w-3" /></button>
+            </div>
             <div v-if="day.plans.length" :id="`calendar-plans-${day.date}`" class="space-y-2" :class="expanded ? 'max-h-80 overflow-y-auto overscroll-y-contain' : ''" :tabindex="expanded ? 0 : undefined" :role="expanded ? 'region' : undefined" :aria-label="expanded ? `${day.date} 全部计划，可滚动` : undefined">
               <CalendarPlanItem v-for="plan in expanded ? day.plans : day.plans.slice(0, view === 'month' ? 1 : 2)" :key="plan.id" :plan="plan" :date="day.date" :compact="!expanded" @inspect="inspectPlan(plan.kind, plan.sourceId, day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
             </div>
