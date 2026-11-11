@@ -3,10 +3,12 @@ import { computed, ref } from 'vue'
 import { CloudCheck, CloudUpload, LogOut, RefreshCw } from '@lucide/vue'
 import { useAuthStore } from '../../stores/auth'
 import { useKeepDoStore } from '../../stores/keepdo'
+import { useConfirmDrawer } from '../../composables/useConfirmDrawer'
 
 const emit = defineEmits<{ 'open-settings': [] }>()
 const auth = useAuthStore()
 const store = useKeepDoStore()
+const confirm = useConfirmDrawer()
 const busy = ref(false)
 const error = ref('')
 const status = computed(() => {
@@ -22,14 +24,14 @@ async function logout() {
   error.value = ''
   try {
     if (store.hasUnsavedChanges && store.sessionExpired) {
-      if (!confirm('登录已过期。请先在设置中导出未保存的数据；继续退出会丢弃当前页面的未保存修改。确定退出吗？')) return
+      if (!(await confirm({ title: '退出当前账号', message: '登录已过期。请先在设置中导出未保存的数据；继续退出会丢弃当前页面的未保存修改。', confirmLabel: '确认退出', danger: true }))) return
     } else await store.flushSync()
     await auth.logout()
   } catch (cause) { error.value = cause instanceof Error ? cause.message : '退出失败，请重试' }
   finally { busy.value = false }
 }
 async function refresh() {
-  if (store.hasUnsavedChanges && !confirm('当前有未保存的修改。建议先在设置中导出备份，刷新会读取云端数据并替换当前内容。继续吗？')) return
+  if (store.hasUnsavedChanges && !(await confirm({ title: '刷新账号数据', message: '当前有未保存的修改。建议先在设置中导出备份，刷新会读取云端数据并替换当前内容。', confirmLabel: '确认刷新', danger: true }))) return
   busy.value = true
   error.value = ''
   try { await store.reloadData() }
@@ -44,7 +46,7 @@ async function retry() {
   } catch (cause) { error.value = cause instanceof Error ? cause.message : '保存失败' }
 }
 async function importLegacy() {
-  if (!confirm('将本机旧版本的数据导入当前账号，并替换当前账号内容？建议先导出当前账号备份。旧本地原始数据会保留。')) return
+  if (!(await confirm({ title: '导入本机旧数据', message: '将本机旧版本的数据导入当前账号，并替换当前账号内容。建议先导出当前账号备份。旧本地原始数据会保留。', confirmLabel: '确认导入', danger: true }))) return
   busy.value = true
   error.value = ''
   try { await store.importLegacyData() }

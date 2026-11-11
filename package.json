@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "clean:ports": "node scripts/clean-ports.mjs",
+    "predev": "node scripts/clean-ports.mjs",
     "dev": "pnpm db:migrate:local && pnpm build:cloudflare && concurrently --kill-others --names api,web \"pnpm dev:api\" \"pnpm exec wait-on --timeout 60000 http-get://localhost:8787/api/health && pnpm dev:web\"",
     "dev:web": "vite",
     "dev:api": "wrangler dev --port 8787",
@@ -22,6 +24,9 @@
   "dependencies": {
     "@lucide/vue": "^1.61.0",
     "canvas-confetti": "^1.9.4",
+    "highlight.js": "catalog:",
+    "html-to-image": "catalog:",
+    "markdown-it": "catalog:",
     "pinia": "^4.1.0",
     "vue": "^3.5.44",
     "zod": "catalog:"

@@ -1,8 +1,10 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
-import type { JournalEntry, JournalFilter, JournalPage } from '../../shared/journal'
+import type { JournalEntry, JournalPage } from '../../shared/journal'
+import type { JournalFeedFilter } from '../../shared/journal-feed'
+import { journalFeedFilterSchema, journalFeedQuery } from '../../shared/journal-feed'
 import { api } from '../lib/api'
 
-export function useJournalFeed(filter: () => JournalFilter) {
+export function useJournalFeed(filter: () => JournalFeedFilter) {
   const entries = ref<JournalEntry[]>([])
   const cursor = ref<string | null>(null)
   const loading = ref(false)
@@ -18,8 +20,9 @@ export function useJournalFeed(filter: () => JournalFilter) {
     loading.value = true
     error.value = ''
     try {
-      const query = new URLSearchParams({ type: filter() })
-      if (more) query.set('cursor', cursor.value!)
+      const parsed = journalFeedFilterSchema.safeParse(filter())
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? '请检查记录筛选条件')
+      const query = journalFeedQuery(parsed.data, more ? cursor.value : null)
       const result = await api<JournalPage>(`/api/journal?${query}`, { signal: controller.signal })
       if (requestGeneration !== generation) return
       entries.value = more ? [...entries.value, ...result.entries.filter(entry => !entries.value.some(old => old.id === entry.id))] : result.entries
@@ -37,7 +40,7 @@ export function useJournalFeed(filter: () => JournalFilter) {
     entries.value = entries.value.filter(entry => entry.id !== entryId)
   }
 
-  watch(filter, () => {
+  watch(() => journalFeedQuery(filter()), () => {
     entries.value = []
     cursor.value = null
     void load()

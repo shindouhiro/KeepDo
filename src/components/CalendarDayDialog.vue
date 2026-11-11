@@ -37,9 +37,9 @@ function selectDate(event: Event) {
 </script>
 
 <template>
-  <dialog ref="calendarDayDialog" id="calendar-day-dialog" aria-labelledby="calendar-day-heading" class="fixed inset-0 m-auto w-[calc(100%-1.5rem)] max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-[#f8f9fa] p-0 text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-[#0B0F17] dark:text-white" @close="handleClose" @click="handleBackdrop">
-    <div class="flex max-h-[90dvh] flex-col">
-      <header class="shrink-0 border-b border-slate-200/70 bg-white px-5 py-4 dark:border-slate-800 dark:bg-[#121824]">
+  <dialog ref="calendarDayDialog" id="calendar-day-dialog" aria-labelledby="calendar-day-heading" class="app-drawer drawer-lg overflow-hidden bg-[#f8f9fa] p-0 text-slate-900 dark:bg-[#0B0F17] dark:text-white" @close="handleClose" @click="handleBackdrop">
+    <div class="flex h-full min-h-0 flex-col">
+      <header class="drawer-header shrink-0 border-b border-slate-200/70 bg-white px-5 py-4 dark:border-slate-800 dark:bg-[#121824]">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400"><CalendarDays class="h-4 w-4" />日程详情</p>
@@ -55,7 +55,7 @@ function selectDate(event: Event) {
           <button id="calendar-day-next" type="button" aria-label="详情后一天" class="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-slate-700 dark:hover:bg-slate-800" @click="emit('update-date', addDays(date, 1))"><ChevronRight class="h-4 w-4" /></button>
         </div>
       </header>
-      <div class="min-h-0 space-y-6 overflow-y-auto overscroll-contain p-4 sm:p-5">
+      <div class="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-4 sm:p-5">
         <p v-if="store.syncError" role="alert" class="rounded-xl bg-amber-50 p-3 text-xs leading-6 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{{ store.syncError }}。未保存时请保留页面，并在设置中导出备份。</p>
         <CalendarGoals v-if="goals.length" :goals="goals" :date="date" detailed id-prefix="calendar-detail" @edit-goal="emit('edit-goal', $event)" @show-goals="emit('show-goals')" @check-in-goal="store.toggleGoalDay" @open-journal="(goalId, date) => emit('open-journal', goalId, date)" />
         <p v-else class="rounded-2xl border border-dashed border-slate-200 p-4 text-xs text-slate-500 dark:border-slate-800">这一天没有关联的长期目标。</p>
@@ -104,7 +104,3 @@ function selectDate(event: Event) {
     </div>
   </dialog>
 </template>
-
-<style scoped>
-dialog::backdrop { background: rgb(0 0 0 / 60%); backdrop-filter: blur(6px); }
-</style>

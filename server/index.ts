@@ -4,6 +4,7 @@ import { HttpError, assertSameOrigin, json, readBody } from './http.ts'
 import { saveDataSchema } from '../shared/schema.ts'
 import { handleJournal } from './journal.ts'
 import { handleBackup } from './backup.ts'
+import { handleGitHubBackup } from './github-backup.ts'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -15,6 +16,7 @@ export default {
       if (path === '/api/health' && request.method === 'GET') return json({ status: 'ok' })
       const user = await getUser(request, env)
       if (!user) throw new HttpError(401, '请先登录')
+      if (path === '/api/github-backup' || path.startsWith('/api/github-backup/')) return await handleGitHubBackup(request, env, user)
       if (path === '/api/backup') return await handleBackup(request, env, user)
       const journal = await handleJournal(request, env, user, path)
       if (journal) return journal

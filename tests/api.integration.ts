@@ -80,6 +80,25 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     const forged = await (await request(`/api/data?user_id=${accounts[0]!.id}`, 'GET', undefined, cookieB)).json() as { data: unknown }
     assert.deepEqual(forged.data, emptyAppData())
   })
+  await t.test('GitHub 备份接口要求登录与同源，状态不泄露凭据且账号独立', async () => {
+    assert.equal((await request('/api/github-backup')).status, 401)
+    assert.equal((await request('/api/github-backup/session', 'POST', { action: 'connect' })).status, 401)
+    assert.equal((await request('/api/github-backup/session', 'POST', { action: 'connect' }, cookieA, 'https://evil.example')).status, 403)
+    assert.equal((await request('/api/github-backup/session', 'POST', { action: 'connect' }, cookieA)).status, 400)
+    const response = await request('/api/github-backup', 'GET', undefined, cookieA)
+    assert.equal(response.status, 200)
+    const status = await response.json() as { available: boolean; connection: unknown }
+    assert.equal(typeof status.available, 'boolean')
+    assert.equal(status.connection, null)
+    assert.equal((await request('/api/github-backup', 'DELETE', undefined, cookieA, 'https://evil.example')).status, 403)
+    const other = await request('/api/github-backup', 'GET', undefined, cookieB)
+    assert.equal((await other.json() as { connection: unknown }).connection, null)
+    assert.equal((await request('/api/github-backup', 'DELETE', undefined, cookieA)).status, 200)
+    const history = await request('/api/github-backup/history', 'GET', undefined, cookieA)
+    assert.equal(history.status, status.available ? 400 : 503)
+    const invalid = await request('/api/github-backup', 'PUT', { owner: '../evil', repo: 'private', token: 'invalid' }, cookieA)
+    assert.equal(invalid.status, status.available ? 400 : 503)
+  })
   await t.test('目标图文日记持久化、编辑、分页与图片权限隔离', async () => {
     const goalPath = '/api/goals/goal-checkin-test/journal'
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY1sAAAAASUVORK5CYII=', 'base64')
@@ -236,6 +255,29 @@ test('真实 Workers/D1 的账号与持久化流程', async t => {
     assert.deepEqual(other, { entries: [], nextCursor: null })
     const otherFiltered = await (await request('/api/journal?type=habit', 'GET', undefined, cookieB)).json() as JournalPage
     assert.deepEqual(otherFiltered.entries, [])
+  })
+  await t.test('记录按具体主体和日期先筛选再分页，日期包含边界并拒绝无效条件', async () => {
+    for (const query of ['from=2026-02-30', 'from=2026-11-10&to=2026-11-09', 'subjectId=goal-checkin-test']) {
+      assert.equal((await request(`/api/journal?${query}`, 'GET', undefined, cookieA)).status, 400)
+    }
+    const query = 'type=habit&subjectId=goal-checkin-test&from=2026-10-28&to=2026-10-28'
+    const habits = await (await request(`/api/journal?${query}`, 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(habits.entries.length, 1)
+    assert.equal(habits.entries[0]!.subjectType, 'habit')
+    assert.equal(habits.entries[0]!.date, '2026-10-28')
+    assert.equal(habits.nextCursor, null)
+    const empty = await (await request('/api/journal?type=goal&from=2026-10-28', 'GET', undefined, cookieA)).json() as JournalPage
+    assert.deepEqual(empty, { entries: [], nextCursor: null })
+    const goalsQuery = 'type=goal&subjectId=goal-checkin-test&from=2026-10-27&to=2026-10-27'
+    const first = await (await request(`/api/journal?${goalsQuery}`, 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(first.entries.length, 20)
+    assert.ok(first.nextCursor)
+    const next = await (await request(`/api/journal?${goalsQuery}&cursor=${encodeURIComponent(first.nextCursor!)}`, 'GET', undefined, cookieA)).json() as JournalPage
+    assert.equal(next.entries.length, 3)
+    assert.equal(next.nextCursor, null)
+    assert.ok([...first.entries, ...next.entries].every(entry => entry.subjectType === 'goal' && entry.subjectId === 'goal-checkin-test' && entry.date === '2026-10-27'))
+    const other = await (await request(`/api/journal?${query}`, 'GET', undefined, cookieB)).json() as JournalPage
+    assert.deepEqual(other, { entries: [], nextCursor: null })
   })
   await t.test('删除图文记录校验账号与版本、清理图片并准确更新日期标记', async () => {
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aY1sAAAAASUVORK5CYII=', 'base64')

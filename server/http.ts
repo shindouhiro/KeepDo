@@ -10,7 +10,7 @@ export function json(value: unknown, status = 200, extra: HeadersInit = {}): Res
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   return new Response(JSON.stringify(value), { status, headers })
 }
-export async function readLimitedBytes(request: Request, limit: number): Promise<Uint8Array<ArrayBuffer>> {
+export async function readLimitedBytes(request: Pick<Request, 'body'>, limit: number): Promise<Uint8Array<ArrayBuffer>> {
   const reader = request.body?.getReader()
   if (!reader) throw new HttpError(400, '请求内容不能为空')
   const chunks: Uint8Array[] = []

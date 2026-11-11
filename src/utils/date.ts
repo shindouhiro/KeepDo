@@ -35,6 +35,38 @@ export function addDays(dateStr: string, days: number): string {
   return formatDate(d)
 }
 
+export const dateRangePresets = [
+  { value: 'all', label: '全部日期' },
+  { value: 'today', label: '今天' },
+  { value: 'yesterday', label: '昨天' },
+  { value: 'last7', label: '最近 7 天' },
+  { value: 'last30', label: '最近 30 天' },
+  { value: 'week', label: '本周' },
+  { value: 'month', label: '本月' },
+] as const
+
+export type DateRangePreset = typeof dateRangePresets[number]['value']
+
+export function getDateRangePreset(preset: DateRangePreset, today = getTodayString()): { from: string; to: string } {
+  switch (preset) {
+    case 'all': return { from: '', to: '' }
+    case 'today': return { from: today, to: today }
+    case 'yesterday': {
+      const yesterday = addDays(today, -1)
+      return { from: yesterday, to: yesterday }
+    }
+    // 最近 N 天包含今天，按日历日计算，避免时区和夏令时造成偏移。
+    case 'last7': return { from: addDays(today, -6), to: today }
+    case 'last30': return { from: addDays(today, -29), to: today }
+    case 'week': {
+      const [year, month, day] = today.split('-').map(Number)
+      const weekday = new Date(year, month - 1, day).getDay()
+      return { from: addDays(today, -((weekday + 6) % 7)), to: today }
+    }
+    case 'month': return { from: `${today.slice(0, 7)}-01`, to: today }
+  }
+}
+
 export function getDaysRemaining(deadlineStr?: string): number | null {
   if (!deadlineStr) return null
   const [year, month, day] = deadlineStr.split('-').map(Number)

@@ -3,6 +3,7 @@ import type { Env, User } from './types.ts'
 import type { JournalEntry, JournalImage, JournalSubjectType } from '../shared/journal.ts'
 import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_BODY_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, getJournalImageType, journalDeleteSchema, journalInputSchema } from '../shared/journal.ts'
 import { HttpError, json, readBody, readLimitedBytes } from './http.ts'
+import { journalFeedFilterSchema } from '../shared/journal-feed.ts'
 
 interface EntryRow {
   id: string; goal_id: string; subject_type: JournalSubjectType; date: string; content: string
@@ -113,9 +114,13 @@ async function listEntries(env: Env, user: User, url: URL, subject?: { type: Jou
     conditions.push('subject_type = ?', 'goal_id = ?')
     values.push(subject.type, subject.id)
   } else {
-    const filter = z.enum(['all', 'goal', 'habit']).safeParse(url.searchParams.get('type') ?? 'all')
-    if (!filter.success) throw new HttpError(400, '记录类型不正确')
-    if (filter.data !== 'all') { conditions.push('subject_type = ?'); values.push(filter.data) }
+    const parsed = journalFeedFilterSchema.safeParse(Object.fromEntries(url.searchParams))
+    if (!parsed.success) throw new HttpError(400, '记录筛选条件不正确，请检查类型和日期范围')
+    const filter = parsed.data
+    if (filter.type !== 'all') { conditions.push('subject_type = ?'); values.push(filter.type) }
+    if (filter.subjectId) { conditions.push('goal_id = ?'); values.push(filter.subjectId) }
+    if (filter.from) { conditions.push('date >= ?'); values.push(filter.from) }
+    if (filter.to) { conditions.push('date <= ?'); values.push(filter.to) }
   }
   if (url.searchParams.has('cursor')) {
     let cursor: [string, string, string]

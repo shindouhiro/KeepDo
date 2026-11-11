@@ -489,8 +489,17 @@ pnpm deploy
 | `/api/journal/entries` | GET | 记录时间线（分页） |
 | `/api/backup` | GET | 导出完整备份 |
 | `/api/backup` | POST | 导入完整备份 |
+| `/api/github-backup` | GET | 获取当前账号 GitHub 连接状态（不返回令牌） |
+| `/api/github-backup/session` | POST | 页面临时授权：connect/history/upload/read，每次携带令牌，仅用于当前请求，不持久保存；无需服务端密钥 |
+| `/api/github-backup` | PUT | 校验私有仓库并加密保存当前账号的授权 |
+| `/api/github-backup` | DELETE | 移除当前账号授权，保留远端备份 |
+| `/api/github-backup/history` | GET | 分页查看当前账号备份文件的提交历史 |
+| `/api/github-backup/snapshot` | POST | 上传不超过 8 MB 的完整备份 |
+| `/api/github-backup/snapshot` | GET | 读取指定提交的完整备份，恢复沿用 `/api/backup` 的版本校验 |
 
 ### 响应格式
+
+记录总时间线 `GET /api/journal` 支持 `type=all|goal|habit`、`subjectId`（需指定 goal/habit 类型）、`from` / `to`（包含边界的 ISO 日期）、`cursor`。筛选在服务端分页前应用，列表与图片导出使用同一组参数；图片导出遍历全部匹配分页。
 
 成功响应（200/201）：
 
@@ -714,6 +723,7 @@ CREATE TABLE rate_limits (
 #### 环境变量
 
 - `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID（部署时可选）
+- `GITHUB_BACKUP_SECRET`：至少 32 字符的随机密钥，用于 AES-GCM 加密每个账号的 GitHub 令牌；仅在需要持久保存授权时配置，未配置时支持页面临时授权。变更密钥后需重新连接仓库，不能写入源码或日志。
 - 本地开发不需要额外配置
 
 ### 测试策略

@@ -14,6 +14,8 @@ export function useNativeDialog(refName: string, isOpen: () => boolean, emitClos
     if (isOpen()) emitClose()
   }
   function handleBackdrop(event: MouseEvent) {
+    // 双击入口后，第二次点击可能落在新弹窗的遮罩上，不能立即将弹窗关闭。
+    if (event.detail > 1) return
     const dialog = dialogRef.value
     if (!dialog || event.target !== dialog) return
     const rect = dialog.getBoundingClientRect()

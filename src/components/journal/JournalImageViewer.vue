@@ -7,11 +7,10 @@ const emit = defineEmits<{ close: [] }>()
 const { handleClose, handleBackdrop } = useNativeDialog('journalImageViewer', () => Boolean(props.image), () => emit('close'))
 </script>
 <template>
-  <dialog id="journal-image-viewer" ref="journalImageViewer" aria-label="图文记录大图" class="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-4xl rounded-2xl border border-slate-700 bg-[#101722] p-3 text-white shadow-2xl" @close="handleClose" @click="handleBackdrop">
-    <div class="mb-2 flex justify-end"><button id="journal-image-close" type="button" aria-label="关闭大图" class="flex h-8 w-8 items-center justify-center rounded-full text-slate-300 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-indigo-400" @click="emit('close')"><X class="h-4 w-4" /></button></div>
-    <img v-if="image" :src="image.url" alt="图文记录大图" class="max-h-[75dvh] w-full rounded-xl object-contain" />
+  <dialog id="journal-image-viewer" ref="journalImageViewer" aria-labelledby="journal-image-heading" class="app-drawer drawer-xl overflow-hidden bg-[#101722] p-0 text-white" @close="handleClose" @click="handleBackdrop">
+    <div class="flex h-full min-h-0 flex-col">
+      <header class="drawer-header flex shrink-0 items-center justify-between border-b border-slate-800 px-5 py-4"><h2 id="journal-image-heading" class="text-base font-semibold">图文记录大图</h2><button id="journal-image-close" type="button" aria-label="关闭大图" class="drawer-close" @click="emit('close')"><X class="h-5 w-5" /></button></header>
+      <div class="min-h-0 flex-1 overflow-auto p-4"><img v-if="image" :src="image.url" alt="图文记录大图" class="h-full w-full rounded-xl object-contain" /></div>
+    </div>
   </dialog>
 </template>
-<style scoped>
-dialog::backdrop { background: rgb(0 0 0 / 75%); backdrop-filter: blur(8px); }
-</style>

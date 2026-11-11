@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
-import { CalendarDays, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Flame, ListTodo, Plus, Target } from '@lucide/vue'
+import { CalendarDays, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Flame, ListTodo, Plus, Target } from '@lucide/vue'
 import type { Goal, Habit, Todo } from '../types'
 import type { CalendarView } from '../../shared/calendar'
 import type { JournalDates } from '../../shared/journal'
@@ -114,12 +114,13 @@ function inspectPlan(kind: 'goal' | 'habit' | 'todo', id: string, date: string) 
         </div>
       </div>
       <div v-if="!collapsed" class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        <div class="flex items-center gap-4" aria-label="计划类型图例">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2" aria-label="计划类型与完成状态图例">
           <span class="flex items-center gap-1.5"><Target class="h-3.5 w-3.5 text-indigo-500" />长期目标</span>
           <span class="flex items-center gap-1.5"><Flame class="h-3.5 w-3.5 text-amber-500" />日常习惯</span>
           <span class="flex items-center gap-1.5"><ListTodo class="h-3.5 w-3.5 text-slate-500" />待办行动</span>
+          <span class="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300"><span class="flex h-4 w-4 items-center justify-center rounded border border-emerald-300 bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60"><Check class="h-3 w-3" /></span>已打卡 / 已完成</span>
         </div>
-        <button id="calendar-toggle-plans" type="button" :aria-pressed="expanded" aria-controls="calendar-planner-grid" class="calendar-control gap-1 px-2 text-[11px]" @click="expanded = !expanded">{{ expanded ? '精简计划' : '展开全部计划' }}</button>
+        <button id="calendar-toggle-plans" type="button" :aria-pressed="expanded" aria-controls="calendar-planner-grid" class="calendar-control gap-1 px-2 text-[11px]" @click="expanded = !expanded">{{ expanded ? '紧凑卡片' : '完整卡片' }}</button>
       </div>
     </header>
 
@@ -154,18 +155,21 @@ function inspectPlan(kind: 'goal' | 'habit' | 'todo', id: string, date: string) 
               <DailyProgress :summary="day.summary" compact />
               <button :id="`calendar-quick-add-${day.date}`" type="button" :aria-label="`为 ${day.date} 添加计划`" class="flex min-h-7 items-center gap-0.5 rounded-lg px-1.5 text-indigo-600 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400 dark:hover:bg-indigo-950/50 transition-colors" @click="emit('new-todo', day.date)"><Plus class="h-3 w-3" /></button>
             </div>
-            <div v-if="day.plans.length" :id="`calendar-plans-${day.date}`" class="space-y-2" :class="expanded ? 'max-h-80 overflow-y-auto overscroll-y-contain' : ''" :tabindex="expanded ? 0 : undefined" :role="expanded ? 'region' : undefined" :aria-label="expanded ? `${day.date} 全部计划，可滚动` : undefined">
-              <CalendarPlanItem v-for="plan in expanded ? day.plans : day.plans.slice(0, view === 'month' ? 1 : 2)" :key="plan.id" :plan="plan" :date="day.date" :compact="!expanded" @inspect="inspectPlan(plan.kind, plan.sourceId, day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
+            <div v-if="day.plans.length" :id="`calendar-plans-${day.date}`" class="space-y-2 overflow-y-auto overscroll-y-contain rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500" :class="view === 'month' && !expanded ? 'max-h-48' : 'max-h-80'" tabindex="0" role="region" :aria-label="`${day.date} 全部 ${day.plans.length} 项计划，可上下滚动`">
+              <CalendarPlanItem v-for="plan in day.plans" :key="plan.id" :plan="plan" :date="day.date" :compact="!expanded" @inspect="inspectPlan(plan.kind, plan.sourceId, day.date)" @check-in="emit('check-in-goal', plan.sourceId, day.date)" />
             </div>
             <div v-else class="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200/80 text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
               <span>留一点自由时间</span>
               <button :id="`calendar-empty-add-${day.date}`" type="button" :aria-label="`为 ${day.date} 添加计划`" class="flex min-h-9 items-center gap-1 rounded-lg px-2 text-indigo-600 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-400 dark:hover:bg-indigo-950/50" @click="emit('new-todo', day.date)"><Plus class="h-3 w-3" />添加计划</button>
             </div>
-            <button v-if="!expanded && day.plans.length > (view === 'month' ? 1 : 2)" :id="`calendar-more-${day.date}`" type="button" aria-haspopup="dialog" aria-controls="calendar-day-dialog" class="mt-2 min-h-9 w-full rounded-lg text-[11px] font-semibold text-indigo-600 hover:bg-indigo-100/60 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-300 dark:hover:bg-indigo-950/50" @click="emit('inspect-date', day.date)">查看全部 {{ day.plans.length }} 项</button>
+            <div v-if="day.plans.length" class="mt-2 border-t border-slate-200/60 pt-1.5 dark:border-slate-800">
+              <p class="text-center text-[10px] leading-5 text-slate-400">共 {{ day.plans.length }} 项 · 可上下滚动</p>
+              <button :id="`calendar-more-${day.date}`" type="button" :aria-label="`查看 ${day.date} 的日程详情，共 ${day.plans.length} 项`" aria-haspopup="dialog" aria-controls="calendar-day-dialog" class="min-h-9 w-full rounded-lg text-[11px] font-semibold text-indigo-600 hover:bg-indigo-100/60 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-indigo-300 dark:hover:bg-indigo-950/50" @click="emit('inspect-date', day.date)">日程详情</button>
+            </div>
           </article>
         </div>
       </div>
-      <footer class="border-t border-slate-200/80 px-4 py-3 text-[11px] leading-5 text-slate-500 sm:px-5 dark:border-slate-800 dark:text-slate-400">进度环统计习惯与待办，绿色加勾表示全部达成；目标打卡独立记录。<span class="lg:hidden">左右滑动查看整周。</span></footer>
+      <footer class="border-t border-slate-200/80 px-4 py-3 text-[11px] leading-5 text-slate-500 sm:px-5 dark:border-slate-800 dark:text-slate-400">单击目标或习惯卡片即可记录，事项较多时在当天列表内上下滚动。进度环统计习惯与待办；目标打卡独立记录。<span class="lg:hidden">左右滑动查看其他日期。</span></footer>
     </div>
     <div v-if="collapsed" class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 px-5 py-3 dark:border-slate-800">
       <span class="text-xs text-slate-500 dark:text-slate-400">所选日期 {{ date }}</span>

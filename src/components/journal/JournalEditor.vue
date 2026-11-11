@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { ImagePlus, LoaderCircle, X, PenLine, Trash2 } from '@lucide/vue'
 import type { JournalEntry } from '../../../shared/journal'
 import { JOURNAL_IMAGE_COUNT } from '../../../shared/journal'
 import type { JournalDraft } from '../../composables/useJournal'
 import { prepareJournalImage } from '../../lib/journal-images'
+import { getPastedJournalImages } from '../../lib/journal-clipboard'
+import JournalMarkdown from './JournalMarkdown.vue'
 
 const props = defineProps<{ date: string; entry: JournalEntry | null; saving: boolean; error: string }>()
 const emit = defineEmits<{ save: [draft: JournalDraft]; cancel: []; delete: [entry: JournalEntry]; dirty: [dirty: boolean] }>()
 const content = ref(props.entry?.content || '')
+const mode = shallowRef<'edit' | 'preview'>('edit')
 const existing = ref([...(props.entry?.images || [])])
 const pending = ref<Array<{ id: string; file: File; url: string }>>([])
 const processing = ref(false)
@@ -22,12 +25,35 @@ const canSave = computed(() => !processing.value && !props.saving && (content.va
 watch([content, () => pending.value.length, () => existing.value.length], () => { operationId.value = crypto.randomUUID() })
 watch(dirty, value => emit('dirty', value), { immediate: true })
 let disposed = false
-async function chooseImages(event: Event) {
+function chooseImages(event: Event) {
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files || [])
   input.value = ''
+  void addImages(files)
+}
+async function pasteImages(event: ClipboardEvent) {
+  const files = getPastedJournalImages(event.clipboardData)
+  if (!files.length) return
+  event.preventDefault()
+  if (props.saving || processing.value) return
+  const target = event.target
+  const text = event.clipboardData?.getData('text/plain') || ''
+  // 图片处理会禁用输入框，先在光标处保留混合复制的文字，避免默认粘贴丢失。
+  if (text && target instanceof HTMLTextAreaElement && !target.disabled && !target.readOnly) {
+    const room = target.maxLength < 0 ? text.length : Math.max(0, target.maxLength - target.value.length + target.selectionEnd - target.selectionStart)
+    target.setRangeText(text.slice(0, room), target.selectionStart, target.selectionEnd, 'end')
+    content.value = target.value
+  }
+  await addImages(files)
+  await nextTick()
+  // 图片处理期间输入框会暂时禁用，完成后恢复焦点，便于继续书写。
+  if (!disposed && target instanceof HTMLTextAreaElement && target.isConnected
+    && (document.activeElement === document.body || document.activeElement === target)) target.focus({ preventScroll: true })
+}
+async function addImages(files: File[]) {
+  if (!files.length || disposed || props.saving || processing.value) return
   fileError.value = ''
-  if (files.length + count.value > JOURNAL_IMAGE_COUNT) { fileError.value = '每条记录最多 6 张图片，请减少选择数量'; return }
+  if (files.length + count.value > JOURNAL_IMAGE_COUNT) { fileError.value = '每条记录最多 6 张图片，请移除部分图片后再添加'; return }
   processing.value = true
   try {
     for (const source of files) {
@@ -51,14 +77,25 @@ onBeforeUnmount(() => { disposed = true; pending.value.forEach(image => URL.revo
 </script>
 
 <template>
-  <form id="journal-entry-form" class="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-[#141b28]" @submit.prevent="submit">
+  <form id="journal-entry-form" class="rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-[#141b28]" @submit.prevent="submit" @paste="pasteImages">
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h3 class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200"><PenLine class="h-3.5 w-3.5 text-indigo-400" />{{ entry ? '编辑这条记录' : '记录这一天' }}</h3>
       <span class="text-[11px] tabular-nums text-slate-400">{{ date }}</span>
     </div>
     <fieldset :disabled="saving || processing" class="min-w-0 disabled:opacity-65">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div role="group" aria-label="记录编辑模式" class="inline-flex gap-1 rounded-lg bg-slate-100/80 p-1 dark:bg-slate-950/50">
+          <button id="journal-mode-edit" type="button" :aria-pressed="mode === 'edit'" aria-controls="journal-entry-content" class="min-h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-indigo-400 motion-reduce:transition-none" :class="mode === 'edit' ? 'bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-300' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'" @click="mode = 'edit'">编辑</button>
+          <button id="journal-mode-preview" type="button" :aria-pressed="mode === 'preview'" aria-controls="journal-entry-preview" class="min-h-8 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-indigo-400 motion-reduce:transition-none" :class="mode === 'preview' ? 'bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-300' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'" @click="mode = 'preview'">预览</button>
+        </div>
+        <span id="journal-markdown-hint" class="text-[10px] text-slate-400">支持 Markdown · 标题 / 列表 / 代码 / 表格</span>
+      </div>
       <label for="journal-entry-content" class="sr-only">当天的进展与详情</label>
-      <textarea id="journal-entry-content" v-model="content" rows="4" maxlength="5000" placeholder="今天做了什么？有什么收获、想法或值得记住的瞬间…" class="w-full resize-y rounded-xl border border-transparent bg-slate-50/70 px-3 py-2.5 text-sm leading-7 text-slate-700 placeholder:text-slate-400 focus:border-indigo-200 focus:outline-none dark:bg-slate-950/40 dark:text-slate-200 dark:focus:border-indigo-800"></textarea>
+      <textarea v-show="mode === 'edit'" id="journal-entry-content" v-model="content" autofocus rows="10" maxlength="5000" aria-describedby="journal-markdown-hint journal-image-hint" placeholder="今天做了什么？有什么收获、想法或值得记住的瞬间…&#10;&#10;试试 # 标题、**重点**、- 列表，点击「预览」查看排版。也可以直接粘贴图片。" class="min-h-[clamp(16rem,42dvh,32rem)] w-full resize-y rounded-xl border border-transparent bg-slate-50/70 px-3 py-2.5 text-sm leading-7 text-slate-700 placeholder:text-slate-400 focus:border-indigo-200 focus:outline-none dark:bg-slate-950/40 dark:text-slate-200 dark:focus:border-indigo-800"></textarea>
+      <div v-if="mode === 'preview'" id="journal-entry-preview" role="region" aria-label="记录 Markdown 预览" class="min-h-[clamp(16rem,42dvh,32rem)] rounded-xl border border-slate-200/70 bg-slate-50/50 px-3 py-3 dark:border-slate-800 dark:bg-slate-950/30">
+        <JournalMarkdown v-if="content.trim()" :content="content" :id-prefix="`journal-preview-${id}`" />
+        <p v-else class="py-8 text-center text-xs leading-6 text-slate-400">还没有文字，切换到「编辑」写下第一行。<br>图片会展示在下方，也可以单独保存。</p>
+      </div>
       <div v-if="count" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="记录中的图片">
         <div v-for="image in existing" :key="image.id" class="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
           <img :src="image.url" alt="已保存的记录图片" class="h-full w-full object-cover" width="160" height="160" />
@@ -75,7 +112,7 @@ onBeforeUnmount(() => { disposed = true; pending.value.forEach(image => URL.revo
             <ImagePlus class="h-4 w-4" />添加图片<span class="tabular-nums opacity-60">{{ count }}/6</span>
             <input id="journal-image-input" type="file" accept="image/jpeg,image/png,image/webp" multiple :disabled="count >= 6" class="sr-only" @change="chooseImages" />
           </label>
-          <span class="ml-1 text-[10px] text-slate-400">自动压缩 · JPG / PNG / WebP</span>
+          <span id="journal-image-hint" class="ml-1 inline-block text-[10px] leading-5 text-slate-400">支持粘贴图片（⌘ / Ctrl + V）· 自动压缩 · JPG / PNG / WebP</span>
         </div>
         <span class="text-[10px] tabular-nums text-slate-400">{{ content.length }}/5000</span>
       </div>

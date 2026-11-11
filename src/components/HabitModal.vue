@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
 import { X, Trash2, Flame } from '@lucide/vue'
+import { useNativeDialog } from '../composables/useNativeDialog'
 
 const props = defineProps<{
   isOpen: boolean
@@ -13,6 +14,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useKeepDoStore()
+const { handleClose, handleBackdrop } = useNativeDialog('habitDrawer', () => props.isOpen, () => emit('close'))
 
 const title = ref('')
 const description = ref('')
@@ -82,91 +84,94 @@ function handleDelete() {
 </script>
 
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl transition-all dark:bg-[#121824] dark:border dark:border-slate-800">
-      <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+  <dialog id="habit-editor-drawer" ref="habitDrawer" aria-labelledby="habit-editor-heading" class="app-drawer overflow-hidden bg-white p-0 text-slate-900 dark:bg-[#121824] dark:text-white" @close="handleClose" @click="handleBackdrop">
+    <div class="drawer-panel flex h-full min-h-0 flex-col p-5 sm:p-6">
+      <div class="flex shrink-0 items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
         <div class="flex items-center gap-2">
           <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-500 dark:bg-amber-950/50">
             <Flame class="h-4 w-4 fill-amber-400" />
           </div>
-          <h3 class="font-display text-base font-bold text-slate-900 dark:text-white">
+          <h2 id="habit-editor-heading" class="font-display text-base font-bold text-slate-900 dark:text-white">
             {{ habitIdToEdit ? '管理日常习惯' : '设立每日微习惯' }}
-          </h3>
+          </h2>
         </div>
         <button
           id="habit-close"
-          aria-label="关闭弹窗"
+          type="button"
+          aria-label="关闭习惯抽屉"
           @click="$emit('close')"
-          class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+          class="drawer-close"
         >
           <X class="h-4 w-4" />
         </button>
       </div>
 
-      <form @submit.prevent="handleSave" class="mt-4 space-y-4">
-        <!-- 习惯名称 -->
-        <div>
-          <label for="habit-title" class="block text-xs font-bold text-slate-700 dark:text-slate-300">习惯名称</label>
-          <input
-            id="habit-title"
-            v-model="title"
-            required
-            type="text"
-            placeholder="例如：早读 30 分钟、喝足 2000ml 水、健身"
-            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
-          />
-        </div>
-
-        <div>
-          <label for="habit-description" class="block text-xs font-bold text-slate-700 dark:text-slate-300">习惯描述（可选）</label>
-          <textarea id="habit-description" v-model="description" maxlength="5000" rows="3" placeholder="写下坚持这个习惯的原因、方法或注意事项…" class="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm leading-6 text-slate-800 focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"></textarea>
-          <p class="mt-1 text-[11px] leading-5 text-slate-400">当天的文字与图片可在习惯卡片的「记录 / 时间线」中添加。</p>
-        </div>
-
-        <!-- 关联长期目标 -->
-        <div>
-          <label for="habit-goal" class="block text-xs font-bold text-slate-700 dark:text-slate-300">关联长期目标（可选）</label>
-          <select
-            id="habit-goal"
-            v-model="goalId"
-            class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
-          >
-            <option value="">🎯 独立习惯（不绑定特定目标）</option>
-            <option v-for="goal in store.goals" :key="goal.id" :value="goal.id">
-              🎯 {{ goal.title }} ({{ goal.category }})
-            </option>
-          </select>
-          <p class="mt-1.5 text-[11px] text-slate-400">若关联了天数型目标，每日打卡将同步自动累计该目标的坚持天数！</p>
-        </div>
-
-        <!-- 每日目标频次与单位 -->
-        <div class="grid grid-cols-2 gap-3">
+      <form id="habit-editor-form" @submit.prevent="handleSave" class="mt-4 flex min-h-0 flex-1 flex-col">
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+          <!-- 习惯名称 -->
           <div>
-            <label for="habit-target-per-day" class="block text-xs font-bold text-slate-700 dark:text-slate-300">每日目标次数</label>
+            <label for="habit-title" class="block text-xs font-bold text-slate-700 dark:text-slate-300">习惯名称</label>
             <input
-              id="habit-target-per-day"
-              v-model.number="targetPerDay"
-              type="number"
-              min="1"
+              id="habit-title"
+              autofocus
+              v-model="title"
               required
-              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
-            />
-          </div>
-          <div>
-            <label for="habit-unit" class="block text-xs font-bold text-slate-700 dark:text-slate-300">单位</label>
-            <input
-              id="habit-unit"
-              v-model="unit"
               type="text"
-              placeholder="次 / 杯 / 分钟"
-              required
+              placeholder="例如：早读 30 分钟、喝足 2000ml 水、健身"
               class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
             />
           </div>
-        </div>
 
-        <!-- 底部操作按钮 -->
-        <div class="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div>
+            <label for="habit-description" class="block text-xs font-bold text-slate-700 dark:text-slate-300">习惯描述（可选）</label>
+            <textarea id="habit-description" v-model="description" maxlength="5000" rows="3" placeholder="写下坚持这个习惯的原因、方法或注意事项…" class="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm leading-6 text-slate-800 focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"></textarea>
+            <p class="mt-1 text-[11px] leading-5 text-slate-400">当天的文字与图片可在习惯卡片的「记录 / 时间线」中添加。</p>
+          </div>
+
+          <!-- 关联长期目标 -->
+          <div>
+            <label for="habit-goal" class="block text-xs font-bold text-slate-700 dark:text-slate-300">关联长期目标（可选）</label>
+            <select
+              id="habit-goal"
+              v-model="goalId"
+              class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+            >
+              <option value="">🎯 独立习惯（不绑定特定目标）</option>
+              <option v-for="goal in store.goals" :key="goal.id" :value="goal.id">
+                🎯 {{ goal.title }} ({{ goal.category }})
+              </option>
+            </select>
+            <p class="mt-1.5 text-[11px] text-slate-400">若关联了天数型目标，每日打卡将同步自动累计该目标的坚持天数！</p>
+          </div>
+
+          <!-- 每日目标频次与单位 -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="habit-target-per-day" class="block text-xs font-bold text-slate-700 dark:text-slate-300">每日目标次数</label>
+              <input
+                id="habit-target-per-day"
+                v-model.number="targetPerDay"
+                type="number"
+                min="1"
+                required
+                class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+              />
+            </div>
+            <div>
+              <label for="habit-unit" class="block text-xs font-bold text-slate-700 dark:text-slate-300">单位</label>
+              <input
+                id="habit-unit"
+                v-model="unit"
+                type="text"
+                placeholder="次 / 杯 / 分钟"
+                required
+                class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
+              />
+            </div>
+          </div>
+
+        </div>
+        <div class="mt-4 flex shrink-0 items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
           <div>
             <button
               v-if="habitIdToEdit"
@@ -200,5 +205,5 @@ function handleDelete() {
         </div>
       </form>
     </div>
-  </div>
+  </dialog>
 </template>
