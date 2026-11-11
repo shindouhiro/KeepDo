@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
 import type { Goal, GoalType, Milestone } from '../types'
-import { X, Trash2, Target } from '@lucide/vue'
+import { ChevronDown, Target, Trash2, X } from '@lucide/vue'
 import { useNativeDialog } from '../composables/useNativeDialog'
 
 const props = defineProps<{
@@ -153,28 +153,34 @@ function handleSave() {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label for="goal-category" class="block text-xs font-bold text-slate-700 dark:text-slate-300">所属分类</label>
-              <select
-                id="goal-category"
-                v-model="category"
-                class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
-              >
-                <option v-for="cat in store.categories.filter(c => c !== '全部')" :key="cat" :value="cat">
-                  {{ cat }}
-                </option>
-              </select>
+              <div class="relative mt-1">
+                <select
+                  id="goal-category"
+                  v-model="category"
+                  class="w-full cursor-pointer appearance-none rounded-2xl border border-slate-200 bg-slate-50/70 pl-3 pr-9 py-2 text-sm text-slate-800 transition-colors hover:border-slate-300 focus:border-indigo-500 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white dark:hover:border-slate-600 dark:focus:bg-slate-800"
+                >
+                  <option v-for="cat in store.categories.filter(c => c !== '全部')" :key="cat" :value="cat">
+                    {{ cat }}
+                  </option>
+                </select>
+                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              </div>
             </div>
 
             <div>
               <label for="goal-type" class="block text-xs font-bold text-slate-700 dark:text-slate-300">衡量模式</label>
-              <select
-                id="goal-type"
-                v-model="type"
-                class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-hidden dark:focus:bg-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white"
-              >
-                <option value="days">📅 天数累计型</option>
-                <option value="number">🔢 数值量化型</option>
-                <option value="milestones">🚩 关键里程碑型</option>
-              </select>
+              <div class="relative mt-1">
+                <select
+                  id="goal-type"
+                  v-model="type"
+                  class="w-full cursor-pointer appearance-none rounded-2xl border border-slate-200 bg-slate-50/70 pl-3 pr-9 py-2 text-sm text-slate-800 transition-colors hover:border-slate-300 focus:border-indigo-500 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white dark:hover:border-slate-600 dark:focus:bg-slate-800"
+                >
+                  <option value="days">📅 天数累计型</option>
+                  <option value="number">🔢 数值量化型</option>
+                  <option value="milestones">🚩 关键里程碑型</option>
+                </select>
+                <ChevronDown class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              </div>
             </div>
           </div>
 

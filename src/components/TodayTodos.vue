@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, Target, Check, Trash2, Smile, ListTodo } from '@lucide/vue'
+import { ChevronDown, Plus, Target, Check, Trash2, Smile, ListTodo } from '@lucide/vue'
 import type { Priority, Todo } from '../types'
 import { useKeepDoStore } from '../stores/keepdo'
 
@@ -102,29 +102,35 @@ const filteredTodos = computed(() => {
 
         <div class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
           <!-- 关联长期目标 -->
-          <select
-            id="today-todo-goal"
-            aria-label="关联长期目标"
-            v-model="newTodoGoalId"
-            class="min-w-0 max-w-full flex-1 rounded-xl border border-slate-200/70 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          >
-            <option value="">🎯 关联长期目标</option>
-            <option v-for="goal in store.goals" :key="goal.id" :value="goal.id">
-              🎯 {{ goal.title }}
-            </option>
-          </select>
+          <div class="relative min-w-0 max-w-full flex-1">
+            <select
+              id="today-todo-goal"
+              aria-label="关联长期目标"
+              v-model="newTodoGoalId"
+              class="w-full cursor-pointer appearance-none rounded-xl border border-slate-200/70 bg-slate-50 pl-2.5 pr-7 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:focus:bg-slate-800"
+            >
+              <option value="">🎯 关联长期目标</option>
+              <option v-for="goal in store.goals" :key="goal.id" :value="goal.id">
+                🎯 {{ goal.title }}
+              </option>
+            </select>
+            <ChevronDown class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          </div>
 
           <!-- 优先级 -->
-          <select
-            id="today-todo-priority"
-            aria-label="待办优先级"
-            v-model="newTodoPriority"
-            class="rounded-xl border border-slate-200/70 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-hidden dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          >
-            <option value="high">🔴 高优先</option>
-            <option value="medium">🟡 中优先</option>
-            <option value="low">🟢 低优先</option>
-          </select>
+          <div class="relative shrink-0">
+            <select
+              id="today-todo-priority"
+              aria-label="待办优先级"
+              v-model="newTodoPriority"
+              class="cursor-pointer appearance-none rounded-xl border border-slate-200/70 bg-slate-50 pl-2.5 pr-7 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:focus:bg-slate-800"
+            >
+              <option value="high">🔴 高优先</option>
+              <option value="medium">🟡 中优先</option>
+              <option value="low">🟢 低优先</option>
+            </select>
+            <ChevronDown class="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          </div>
 
           <!-- 提交按钮 -->
           <button
