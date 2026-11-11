@@ -261,6 +261,8 @@ function handleSave() {
 
 #### 无障碍规范
 
+所有应用浮层统一使用右侧全高抽屉，窄屏铺满屏幕。沿用原生 `<dialog>` 与 `useNativeDialog`，使用全局 `app-drawer` 样式及 `drawer-sm` / `drawer-lg` / `drawer-xl` 宽度。表单和设置内容独立滚动，关闭与保存操作保持可见。确认操作使用 `useConfirmDrawer`，禁止调用浏览器 `window.confirm` / `alert` / `prompt`；必须保留键盘焦点约束、焦点返回、草稿保护与危险操作确认。
+
 所有组件遵循 WCAG 标准：
 
 1. **语义化 HTML**：使用 `<button>`, `<nav>`, `<section>` 等
