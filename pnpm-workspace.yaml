@@ -10,3 +10,7 @@ catalog:
   wait-on: ^9.5.1
   wrangler: 4.152.0
   zod: 4.6.7
+
+catalogs:
+  dev:
+    bumpp: ^12.3.0

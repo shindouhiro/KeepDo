@@ -193,7 +193,19 @@ pnpm build:extension
 
 工作流在推送到 `main`、提交面向 `main` 的 Pull Request 时自动运行，也支持通过 **Run workflow** 手动触发。它会先运行单元测试，再构建并检查 ZIP 完整性；打包或上传产物失败会使工作流失败。安装包以原始 ZIP 上传，下载后只需解压一次。
 
-发布新版本时，先更新 `extension/manifest.json` 的 `version` 并提交，再推送对应的 `v<版本号>` 标签（例如 `v1.0.1`）。工作流会校验标签与扩展版本一致，构建通过后自动创建 GitHub Release 并附加 `dist-extension.zip`。Release 中的安装包不受 Actions 产物 30 天保留期限制；重新运行标签工作流会更新同版本的安装包。
+发布新版本使用 [bumpp](https://github.com/antfu-collective/bumpp)，需要 Node.js 22.18+（22.x）或 24.11+（24.x）。在 `main` 分支提交完代码、确保工作区干净后运行：
+
+```bash
+# 交互选择版本并确认发布
+pnpm release
+
+# 或指定版本增量，仍会在执行前请求确认
+pnpm release --release patch
+```
+
+`bump.config.ts` 会统一更新 `package.json` 与 `extension/manifest.json` 的版本，运行测试、类型检查、主应用与扩展构建，然后自动创建版本提交、`v<版本号>` 标签并推送。Chrome 扩展请使用正式的 `patch` / `minor` / `major` 版本，不使用带 `beta` 等后缀的预发布版本。如果发布前检查失败，修复问题后可运行 `pnpm release:check` 重新验证，版本文件改动会保留供检查。
+
+标签推送后，工作流会校验标签与扩展版本一致，构建通过后自动创建 GitHub Release 并附加 `dist-extension.zip`。Release 中的安装包不受 Actions 产物 30 天保留期限制；重新运行标签工作流会更新同版本的安装包。
 
 本地加载步骤：
 
