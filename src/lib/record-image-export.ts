@@ -1,4 +1,4 @@
-import { RECORD_EXPORT_WIDTH, recordCaptureSize, recordSvgBlob } from '../../shared/record-image-export'
+import { RECORD_EXPORT_WIDTH, recordCaptureSize, recordSvgBlob } from '../../shared/record-image-export.ts'
 
 async function waitForAssets<T>(ready: Promise<T>, signal: AbortSignal, message = '照片或字体加载超时，请检查网络后重新生成') {
   signal.throwIfAborted()
@@ -19,9 +19,11 @@ async function waitForAssets<T>(ready: Promise<T>, signal: AbortSignal, message 
   }
 }
 
-async function waitForImages(sheet: HTMLElement, signal: AbortSignal) {
+export async function waitForRecordImages(sheet: HTMLElement, signal: AbortSignal) {
   await Promise.all(Array.from(sheet.querySelectorAll('img'), async image => {
     signal.throwIfAborted()
+    // 导出内容在屏幕外排版，懒加载图片不会进入视口，必须主动加载后再等待解码。
+    image.loading = 'eager'
     if (image.hasAttribute('data-image-loading')) {
       await new Promise<void>((resolve, reject) => {
         const cleanup = () => { observer.disconnect(); clearTimeout(timer); signal.removeEventListener('abort', abort) }
@@ -47,7 +49,7 @@ export async function captureRecordImage(
   signal: AbortSignal,
 ) {
   const { getFontEmbedCSS, toSvg } = await import('html-to-image')
-  await waitForAssets(Promise.all([document.fonts.ready, waitForImages(sheet, signal)]), signal)
+  await waitForAssets(Promise.all([document.fonts.ready, waitForRecordImages(sheet, signal)]), signal)
   const fontEmbedCSS = await waitForAssets(getFontEmbedCSS(viewport, { preferredFontFormat: 'woff2', fetchRequestInit: { signal } }), signal)
   signal.throwIfAborted()
   const height = Math.ceil(sheet.getBoundingClientRect().height)

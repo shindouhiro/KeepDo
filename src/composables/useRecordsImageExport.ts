@@ -90,7 +90,9 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
     try {
       const snapshot = journalFeedFilterSchema.parse(filter)
       const all = await collectJournalPages(
-        cursor => api<JournalPage>(`/api/journal?${journalFeedQuery(snapshot, cursor)}`, { signal: current.signal }),
+        cursor => api<JournalPage>(`/api/journal?${journalFeedQuery(snapshot, cursor)}`, {
+          signal: AbortSignal.any([current.signal, AbortSignal.timeout(20_000)]),
+        }),
         count => { progress.value = `已读取 ${count} 条记录，正在整理完整内容…` },
         current.signal,
       )
@@ -118,7 +120,10 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
         error.value = cause instanceof Error ? cause.message : '图片生成失败，请稍后重试'
       }
     } finally {
+      // 失败、超时或完成后都结束剩余的图片观察与网络等待。
+      current.abort()
       if (controller === current) {
+        controller = undefined
         busy.value = false
         entries.value = []
       }

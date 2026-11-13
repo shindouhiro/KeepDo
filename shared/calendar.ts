@@ -16,6 +16,17 @@ export interface CalendarPlan {
   hasJournal?: boolean
 }
 
+// 一次建立日期索引，供周/月视图和多日统计复用，保留当天待办的原始顺序。
+export function groupTodosByDate(todos: readonly Todo[]): Map<string, Todo[]> {
+  const groups = new Map<string, Todo[]>()
+  for (const todo of todos) {
+    const group = groups.get(todo.date)
+    if (group) group.push(todo)
+    else groups.set(todo.date, [todo])
+  }
+  return groups
+}
+
 export function getCalendarDates(date: string, view: CalendarView): string[] {
   const start = new Date(`${date}T12:00:00Z`)
   let count = 7
@@ -36,11 +47,12 @@ export function getCalendarDates(date: string, view: CalendarView): string[] {
 export function getCalendarPlans(goals: Goal[], habits: Habit[], todos: Todo[], date: string, journalDates: JournalDates = {}, habitJournalDates: JournalDates = {}): CalendarPlan[] {
   const goalPlans: CalendarPlan[] = getGoalsForDate(goals, date, journalDates).map(goal => {
     const status = getGoalDateStatus(goal, date)
+    const percent = getGoalProgressPercent(goal)
     return {
       id: `goal-${goal.id}`, sourceId: goal.id, kind: 'goal', title: goal.title, completed: isGoalComplete(goal),
       checkedIn: goal.checkIns?.[date] === true,
       hasJournal: getJournalDates(journalDates, goal.id).includes(date),
-      detail: `累计 ${getGoalProgressPercent(goal)}%`, percent: getGoalProgressPercent(goal),
+      detail: `累计 ${percent}%`, percent,
       attention: status === 'due' ? '今日截止' : status === 'overdue' ? '已逾期' : undefined,
     }
   })

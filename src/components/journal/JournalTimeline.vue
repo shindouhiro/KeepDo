@@ -10,7 +10,8 @@ const props = withDefaults(defineProps<{ entries: JournalEntry[]; checkIns?: Rec
 defineSlots<{ source?(props: { entry: JournalEntry }): unknown }>()
 const emit = defineEmits<{ edit: [entry: JournalEntry]; delete: [entry: JournalEntry]; preview: [image: JournalImage] }>()
 const groups = computed(() => groupJournalEntries(props.entries))
-function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) }
+const timeFormatter = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
+function time(iso: string) { return timeFormatter.format(new Date(iso)) }
 </script>
 
 <template>

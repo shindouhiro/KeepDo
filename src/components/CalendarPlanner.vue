@@ -4,7 +4,7 @@ import { CalendarDays, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
 import type { Goal, Habit, Todo } from '../types'
 import type { CalendarView } from '../../shared/calendar'
 import type { JournalDates } from '../../shared/journal'
-import { getCalendarDates, getCalendarPlans, getDailyActionSummary } from '../../shared/calendar'
+import { getCalendarDates, getCalendarPlans, getDailyActionSummary, groupTodosByDate } from '../../shared/calendar'
 import { addDays, getTodayString } from '../utils/date'
 import CalendarPlanItem from './CalendarPlanItem.vue'
 import DailyProgress from './DailyProgress.vue'
@@ -47,7 +47,8 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   cancelAnimationFrame(frame)
 })
-const selectedSummary = computed(() => getDailyActionSummary(props.todos, props.habits, props.date))
+const todosByDate = computed(() => groupTodosByDate(props.todos))
+const selectedSummary = computed(() => getDailyActionSummary(todosByDate.value.get(props.date) ?? [], props.habits, props.date))
 const today = getTodayString()
 const weekdays = ['一', '二', '三', '四', '五', '六', '日']
 const days = computed(() => getCalendarDates(props.date, view.value).map((date, index) => ({
@@ -55,8 +56,8 @@ const days = computed(() => getCalendarDates(props.date, view.value).map((date, 
   day: Number(date.slice(-2)),
   weekday: weekdays[index % 7],
   inMonth: date.slice(0, 7) === props.date.slice(0, 7),
-  plans: getCalendarPlans(props.goals, props.habits, props.todos, date, props.journalDates, props.habitJournalDates),
-  summary: getDailyActionSummary(props.todos, props.habits, date),
+  plans: getCalendarPlans(props.goals, props.habits, todosByDate.value.get(date) ?? [], date, props.journalDates, props.habitJournalDates),
+  summary: getDailyActionSummary(todosByDate.value.get(date) ?? [], props.habits, date),
 })))
 const heading = computed(() => `${Number(props.date.slice(0, 4))} 年 ${Number(props.date.slice(5, 7))} 月`)
 const rangeLabel = computed(() => {

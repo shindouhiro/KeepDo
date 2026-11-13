@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { JournalEntry } from '../shared/journal.ts'
-import { collectJournalPages, journalFeedFilterSchema, journalFeedQuery } from '../shared/journal-feed.ts'
+import { appendJournalEntries, collectJournalPages, journalFeedFilterSchema, journalFeedQuery } from '../shared/journal-feed.ts'
 import { recordCaptureSize, recordSvgBlob, RECORD_EXPORT_MAX_DIMENSION, RECORD_EXPORT_MAX_PIXELS, RECORD_EXPORT_WIDTH } from '../shared/record-image-export.ts'
 
 test('记录筛选兼容默认条件，校验完整日期、主体类型与日期区间', () => {
@@ -17,6 +17,29 @@ test('记录筛选兼容默认条件，校验完整日期、主体类型与日�
 })
 
 const entry = (id: string): JournalEntry => ({ id, subjectType: 'goal', subjectId: 'g', date: '2026-11-10', content: id, images: [], createdAt: '2026-11-10T00:00:00.000Z', updatedAt: '2026-11-10T00:00:00.000Z', version: 1 })
+
+test('追加分页保留现有记录和顺序，同时移除跨页及页内重复记录', () => {
+  const current = Object.freeze([entry('a'), entry('b')])
+  const incoming = Object.freeze([{ ...entry('b'), content: '重复记录' }, entry('c'), entry('c'), entry('d')])
+  const result = appendJournalEntries(current, incoming)
+  assert.deepEqual(result.map(item => item.id), ['a', 'b', 'c', 'd'])
+  assert.equal(result[1], current[1])
+  assert.equal(result[2], incoming[1])
+  assert.equal(current.length, 2)
+  assert.equal(incoming.length, 4)
+  assert.deepEqual(appendJournalEntries([], []), [])
+  assert.deepEqual(appendJournalEntries([], [entry('a'), entry('a')]), [entry('a')])
+})
+
+test('长时间线追加分页只读取线性数量的记录 ID', () => {
+  let reads = 0
+  const countedEntry = (id: string): JournalEntry => ({ ...entry(id), get id() { reads++; return id } })
+  const current = Array.from({ length: 10_000 }, (_, index) => countedEntry(String(index)))
+  const incoming = Array.from({ length: 100 }, (_, index) => countedEntry(String(9_950 + index)))
+  const result = appendJournalEntries(current, incoming)
+  assert.equal(result.length, 10_050)
+  assert.ok(reads <= current.length + incoming.length * 2)
+})
 
 test('完整读取所有分页，重复记录只出现一次，保留超过首屏的记录', async () => {
   const cursors: Array<string | null> = []

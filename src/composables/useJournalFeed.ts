@@ -1,50 +1,21 @@
-import { onBeforeUnmount, ref, watch } from 'vue'
-import type { JournalEntry, JournalPage } from '../../shared/journal'
+import { watch } from 'vue'
+import type { JournalPage } from '../../shared/journal'
 import type { JournalFeedFilter } from '../../shared/journal-feed'
 import { journalFeedFilterSchema, journalFeedQuery } from '../../shared/journal-feed'
 import { api } from '../lib/api'
+import { useJournalPages } from './useJournalPages'
 
 export function useJournalFeed(filter: () => JournalFeedFilter) {
-  const entries = ref<JournalEntry[]>([])
-  const cursor = ref<string | null>(null)
-  const loading = ref(false)
-  const error = ref('')
-  let generation = 0
-  let controller: AbortController | undefined
-
-  async function load(more = false) {
-    if (more && (!cursor.value || loading.value)) return
-    const requestGeneration = ++generation
-    controller?.abort()
-    controller = new AbortController()
-    loading.value = true
-    error.value = ''
-    try {
-      const parsed = journalFeedFilterSchema.safeParse(filter())
-      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? '请检查记录筛选条件')
-      const query = journalFeedQuery(parsed.data, more ? cursor.value : null)
-      const result = await api<JournalPage>(`/api/journal?${query}`, { signal: controller.signal })
-      if (requestGeneration !== generation) return
-      entries.value = more ? [...entries.value, ...result.entries.filter(entry => !entries.value.some(old => old.id === entry.id))] : result.entries
-      cursor.value = result.nextCursor
-    } catch (cause) {
-      if (requestGeneration === generation) error.value = cause instanceof Error ? cause.message : '记录加载失败，请稍后重试'
-    } finally { if (requestGeneration === generation) loading.value = false }
-  }
-
-  function removeEntry(entryId: string) {
-    generation++
-    controller?.abort()
-    loading.value = false
-    error.value = ''
-    entries.value = entries.value.filter(entry => entry.id !== entryId)
-  }
+  const pages = useJournalPages(async (cursor, signal) => {
+    const parsed = journalFeedFilterSchema.safeParse(filter())
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? '请检查记录筛选条件')
+    const query = journalFeedQuery(parsed.data, cursor)
+    return api<JournalPage>(`/api/journal?${query}`, { signal })
+  }, '记录加载失败，请稍后重试')
 
   watch(() => journalFeedQuery(filter()), () => {
-    entries.value = []
-    cursor.value = null
-    void load()
+    pages.reset()
+    void pages.load()
   }, { immediate: true })
-  onBeforeUnmount(() => { generation++; controller?.abort() })
-  return { entries, cursor, loading, error, load, removeEntry }
+  return pages
 }

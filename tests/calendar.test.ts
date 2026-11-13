@@ -1,11 +1,57 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { getDailyActionSummary, getGoalsForDate, getGoalDateStatus, getGoalProgressPercent, isGoalComplete } from '../shared/calendar.ts'
+import { computed, ref } from 'vue'
+import { getCalendarDates, getCalendarPlans, getDailyActionSummary, getGoalsForDate, getGoalDateStatus, getGoalProgressPercent, groupTodosByDate, isGoalComplete } from '../shared/calendar.ts'
 import type { Goal, Habit, Todo } from '../src/types/index.ts'
 
 const date = '2026-10-27'
 const todo: Todo = { id: 't1', title: '阅读', date, completed: true, priority: 'medium', createdAt: date }
 const habit: Habit = { id: 'h1', title: '跑步', targetPerDay: 1, unit: '次', records: {}, color: 'indigo', createdAt: date }
+
+test('日期索引保留待办顺序和对象，修改分组数组不影响输入数组', () => {
+  const other = { ...todo, id: 't2', date: '2026-10-28' }
+  const sameDay = { ...todo, id: 't3', completed: false }
+  const input = Object.freeze([todo, other, sameDay])
+  const groups = groupTodosByDate(input)
+  assert.deepEqual(groups.get(date), [todo, sameDay])
+  assert.equal(groups.get(date)?.[0], todo)
+  assert.deepEqual(groups.get(other.date), [other])
+  assert.equal(groups.get('2026-10-29'), undefined)
+  groups.get(date)!.pop()
+  assert.equal(input.length, 3)
+  assert.equal(groupTodosByDate([]).size, 0)
+})
+
+test('按日期索引计算整月计划和进度，与全量待办计算一致', () => {
+  const todos = Array.from({ length: 200 }, (_, index) => ({
+    ...todo, id: `indexed-${index}`, date: `2026-10-${String(index % 31 + 1).padStart(2, '0')}`, completed: index % 3 === 0,
+  }))
+  const habits = [{ ...habit, records: { '2026-10-26': 1, '2026-10-28': 1 } }]
+  const goals = [{ ...goal, deadline: '2026-10-29' }]
+  const groups = groupTodosByDate(todos)
+  for (const day of getCalendarDates(date, 'month')) {
+    const dayTodos = groups.get(day) ?? []
+    assert.deepEqual(getCalendarPlans(goals, habits, dayTodos, day), getCalendarPlans(goals, habits, todos, day))
+    assert.deepEqual(getDailyActionSummary(dayTodos, habits, day), getDailyActionSummary(todos, habits, day))
+  }
+})
+
+test('响应式日期索引跟随待办改期、完成、增删和整体替换更新', () => {
+  const todos = ref([{ ...todo }])
+  const groups = computed(() => groupTodosByDate(todos.value))
+  const summary = computed(() => getDailyActionSummary(groups.value.get(date) ?? [], [], date))
+  assert.equal(summary.value.state, 'completed')
+  todos.value[0]!.completed = false
+  assert.equal(summary.value.state, 'pending')
+  todos.value[0]!.date = '2026-10-28'
+  assert.equal(summary.value.state, 'empty')
+  todos.value.push({ ...todo, id: 't2' })
+  assert.equal(summary.value.state, 'completed')
+  todos.value.pop()
+  assert.equal(summary.value.state, 'empty')
+  todos.value = [{ ...todo }]
+  assert.equal(summary.value.state, 'completed')
+})
 
 test('没有行动时显示尚未安排，不能算作完成 100%', () => {
   assert.deepEqual(getDailyActionSummary([], [], date), { total: 0, completed: 0, percent: 0, state: 'empty' })

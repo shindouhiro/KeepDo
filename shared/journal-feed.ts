@@ -20,6 +20,18 @@ export function journalFeedQuery(filter: JournalFeedFilter, cursor?: string | nu
   return query.toString()
 }
 
+export function appendJournalEntries(current: readonly JournalEntry[], incoming: readonly JournalEntry[]): JournalEntry[] {
+  const entries = [...current]
+  const ids = new Set(current.map(entry => entry.id))
+  for (const entry of incoming) {
+    // 保留已展示记录；同时过滤分页交界处和新分页内部的重复 ID。
+    if (ids.has(entry.id)) continue
+    ids.add(entry.id)
+    entries.push(entry)
+  }
+  return entries
+}
+
 export async function collectJournalPages(
   readPage: (cursor: string | null) => Promise<JournalPage>,
   onProgress: (count: number) => void,

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
 import { getPastNDays, calculateHabitStreak } from '../utils/date'
+import { groupTodosByDate } from '../../shared/calendar'
 import {
   Flame,
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
 } from '@lucide/vue'
 
 const store = useKeepDoStore()
+const completedTodosByDate = computed(() => groupTodosByDate(store.todos.filter(todo => todo.completed)))
 
 // 过去 84 天（12 周）的打卡热力图数据
 const heatmapDays = computed(() => {
@@ -24,7 +26,7 @@ const heatmapDays = computed(() => {
         habitCount++
       }
     })
-    const todoCount = store.todos.filter(t => t.date === day && t.completed).length
+    const todoCount = completedTodosByDate.value.get(day)?.length ?? 0
     const total = habitCount + todoCount
     return {
       date: day,
@@ -45,7 +47,9 @@ const totalHabitPunchCount = computed(() => {
 })
 
 const totalCompletedTodos = computed(() => {
-  return store.todos.filter(t => t.completed).length
+  let total = 0
+  for (const todos of completedTodosByDate.value.values()) total += todos.length
+  return total
 })
 
 const maxStreak = computed(() => {
