@@ -4,9 +4,128 @@
 
 KeepDo 是一款把长期目标、日常习惯和待办行动放在一起的个人管理工具。从「读完 12 本书」到「每天阅读 30 分钟」，用计划日历安排今天，用打卡记录坚持，用成长时间线留下过程。同一套 Vue 界面提供 Web，以及基于 Tauri 2 的 Windows、macOS、Linux、Android 和 iOS 客户端构建。
 
-[在线体验](https://keepdo.shindouhiro.workers.dev) · [产品截图](#产品截图) · [本地运行](#启动与运行) · [原生客户端](#跨平台原生客户端) · [Chrome 扩展](#chrome-扩展实验性) · [部署说明](#部署到-cloudflare) · [账号与备份](#账号与同步) · [开发验证](#验证)
+[在线体验](https://keepdo.shindouhiro.workers.dev) · [下载与安装](#下载与安装) · [产品截图](#产品截图) · [本地运行](#启动与运行) · [原生开发](#跨平台原生客户端) · [Chrome 扩展](#chrome-扩展实验性) · [部署说明](#部署到-cloudflare) · [版本发布](#版本发布与补传安装包) · [常见问题](#常见问题)
 
 ![KeepDo 长期目标工作台：数值目标、天数目标与里程碑目标](docs/screenshots/goals.jpg)
+
+## 下载与安装
+
+直接使用 [Web 版](https://keepdo.shindouhiro.workers.dev) 即可注册账号、管理目标和记录日记，无需安装开发工具。桌面和移动客户端连接同一线上服务，使用同一个 KeepDo 账号；首次打开客户端仍需登录，浏览器的登录状态不会自动复制到原生客户端。
+
+### 选择正确的安装包
+
+打开 [最新 Release](https://github.com/shindouhiro/KeepDo/releases/latest)，展开页面底部的 **Assets**，下载与你的设备匹配的文件。普通用户下载 Release 安装包即可，**不需要安装 Node.js、pnpm、Rust 或克隆仓库**。
+
+下表以 [v1.0.2](https://github.com/shindouhiro/KeepDo/releases/tag/v1.0.2) 为文件名和下载链接示例；后续版本请在最新 Release 中选择对应的新版本文件。
+
+| 设备 / 用途 | 文件名示例与下载 | 使用条件 |
+| --- | --- | --- |
+| Mac，Apple Silicon（M 系列芯片） | [KeepDo_1.0.2_macos_arm64.dmg](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_macos_arm64.dmg) | macOS 14.4 及以上 |
+| Mac，Intel 芯片 | [KeepDo_1.0.2_macos_x64.dmg](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_macos_x64.dmg) | macOS 14.4 及以上 |
+| Windows，x64 | [KeepDo_1.0.2_windows_x64_setup.exe](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_windows_x64_setup.exe) | 需要可用的 WebView2 Runtime；当前不提供 Windows ARM64 原生包 |
+| Linux，x64，AppImage | [KeepDo_1.0.2_linux_x64.AppImage](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_linux_x64.AppImage) | 需要兼容的系统运行库与桌面密钥环 |
+| Linux，Debian / Ubuntu 系，amd64 | [KeepDo_1.0.2_linux_amd64.deb](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_linux_amd64.deb) | 使用系统包管理器安装并解析依赖 |
+| Android，arm64 手机 | [KeepDo_1.0.2_android_arm64_debug.apk](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_android_arm64_debug.apk) | 最低 Android API 24（Android 7.0），保持系统 WebView 更新；调试签名 |
+| iOS，Apple Silicon Mac 上的模拟器 | [KeepDo_1.0.2_ios_arm64_simulator.zip](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/KeepDo_1.0.2_ios_arm64_simulator.zip) | 需要 Xcode 与 iOS 17.4+ 模拟器；不能安装到 iPhone / iPad 真机 |
+| Chrome 新标签页 / 侧栏 | [dist-extension.zip](https://github.com/shindouhiro/KeepDo/releases/latest/download/dist-extension.zip) | 按 [Chrome 扩展说明](#chrome-扩展实验性) 加载 |
+| 原生包完整性校验 | [SHA256SUMS-native.txt（v1.0.2）](https://github.com/shindouhiro/KeepDo/releases/download/v1.0.2/SHA256SUMS-native.txt) | 与安装包下载自同一版本，仅包含原生附件的哈希 |
+
+`arm64` 与 `x64 / amd64` 表示处理器架构。Mac 可在「 → 关于本机」查看芯片；M 系列选择 `macos_arm64`，Intel 选择 `macos_x64`。Android 当前只提供 arm64 APK，不适用于 x86 模拟器。
+
+| 下载位置 / 文件 | 含义 |
+| --- | --- |
+| Release 的 DMG、EXE、APK、AppImage、DEB | 可以安装或运行的客户端文件，公开仓库下载无需登录 GitHub |
+| Release 的 `Source code (zip)` / `Source code (tar.gz)` | GitHub 自动生成的源码压缩包，不是安装包 |
+| Actions 的 Artifacts | 某次构建的中间分发产物，通常需要登录 GitHub；原生包保留 14 天 |
+| iOS 模拟器 ZIP | 包含模拟器归档的压缩文件，不是可供真机安装的 IPA |
+
+当前原生安装包用于测试：Windows/macOS 尚未配置正式发行签名或 macOS 公证，Android 使用调试签名；暂未上架 Microsoft Store、Mac App Store、Google Play 或 App Store。
+
+### macOS 安装
+
+1. 下载对应芯片的 DMG，双击挂载。
+2. 将 `KeepDo.app` 拖入「应用程序」，复制完成后推出磁盘映像。
+3. 从「应用程序」打开 KeepDo，注册或登录账号。
+4. 若系统因开发者验证而拦截，先确认来自本仓库 Release 并 [校验安装包](#校验安装包)。对确认可信的测试包，可按 [Apple 的打开应用说明](https://support.apple.com/en-us/102445)，在尝试打开后到「系统设置 → 隐私与安全性」查看是否有「仍要打开」选项。受组织策略限制或没有此选项时，可先使用 Web 版。
+
+出现「应用程序已损坏」时，先重新下载并检查哈希、系统版本及芯片架构；不要把关闭系统整体安全检查作为安装步骤。
+
+### Windows 安装
+
+1. 下载 `*windows_x64_setup.exe`，运行安装向导并选择安装位置。
+2. 按向导完成安装，从开始菜单或桌面快捷方式启动。
+3. 如果提示缺少 WebView2，安装 [微软官方 WebView2 Evergreen Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)，然后重新启动 KeepDo。联网安装器与独立安装器均由该页面提供。
+4. 若出现未知发布者或 SmartScreen 提示，请核对 Release 来源与校验和；当前测试包没有正式发行签名，单位设备的安装策略可能阻止运行，可使用 Web 版。
+
+### Linux 安装
+
+AppImage：下载后赋予执行权限，再运行。下面命令在下载目录执行，文件名按实际版本替换：
+
+```bash
+chmod +x KeepDo_1.0.2_linux_x64.AppImage
+./KeepDo_1.0.2_linux_x64.AppImage
+```
+
+DEB：在使用 APT 的 Debian / Ubuntu 系统中，进入下载目录执行：
+
+```bash
+sudo apt install ./KeepDo_1.0.2_linux_amd64.deb
+```
+
+安装后通过桌面应用菜单打开。Linux 包在 Ubuntu 22.04 CI 中构建，尚未覆盖所有发行版的运行验证；WebKitGTK、图形环境、系统库或 FUSE 不兼容时需按发行版处理。AppImage 遇到 FUSE 问题时，也可在兼容系统中选择 DEB。
+
+登录需要可用且已解锁的 Secret Service 密钥环，例如 GNOME Keyring，或提供相应服务的 KWallet 环境。只有命令行、未启动桌面会话或未解锁密钥环时，可能出现「无法安全保存登录凭据」。
+
+### Android 安装
+
+1. 在 arm64 Android 手机上下载 `*android_arm64_debug.apk`。
+2. 从下载通知或文件管理器打开 APK，按系统提示允许当前浏览器 / 文件管理器安装该应用。Android 8.0 及以上按来源分别授权，入口因系统而异，见 [Android 官方分发说明](https://developer.android.com/distribute/marketing-tools/alternative-distribution)。
+3. 安装完成后打开 KeepDo 并登录；需要网络连接与可用的系统 WebView。
+4. 手机端导出记录时使用「保存 PNG」后分享；当前暂不支持直接复制图片到剪贴板。
+
+调试 APK 仅用于测试。不同 CI 构建可能使用不同调试证书，覆盖安装时可能提示签名不一致；先确认账号已保存并导出完整备份，再卸载旧测试版、安装新包并重新登录。正式发布需要固定的发布签名，配置见 [原生客户端指南](docs/native.md#android-初始化与签名)。
+
+### iOS 模拟器与真机说明
+
+当前 Release **没有可直接安装到 iPhone / iPad 的 IPA**。`*ios_arm64_simulator.zip` 面向使用 Apple Silicon Mac 和 Xcode 的开发者，不能通过改后缀变成真机包。
+
+在 Xcode 中准备并启动 iOS 17.4 或更新版本的模拟器，解压 ZIP，在 `.xcarchive/Products/Applications/` 下找到 `KeepDo.app`，将它拖入已启动的模拟器窗口即可安装。也可在终端执行，替换为实际解压路径：
+
+```bash
+xcrun simctl install booted "/实际解压目录/build/keepdo_iOS.xcarchive/Products/Applications/KeepDo.app"
+xcrun simctl launch booted dev.keepdo.client
+```
+
+真机测试、TestFlight 和 App Store 分发需要 Apple 开发者团队、证书、描述文件及相应签名流程，详见 [iOS 初始化与签名](docs/native.md#ios-初始化与签名)。
+
+### 校验安装包
+
+下载与安装包同一 Release 的 `SHA256SUMS-native.txt`。在下载目录计算对应文件的 SHA-256，与清单中同名文件那一行比较；文件名、版本和哈希应一致：
+
+```bash
+# macOS 示例
+shasum -a 256 KeepDo_1.0.2_macos_arm64.dmg
+
+# Linux 示例
+sha256sum KeepDo_1.0.2_linux_x64.AppImage
+```
+
+Windows PowerShell 示例：
+
+```powershell
+Get-FileHash .\KeepDo_1.0.2_windows_x64_setup.exe -Algorithm SHA256
+```
+
+校验和用于核对下载内容是否与发布附件一致，不代表安装包已获得系统签名或公证。
+
+### 升级、同步与卸载
+
+1. 升级前确认顶部状态为「已保存到账号」，并在「设置与数据管理」导出一次完整备份。
+2. 退出旧版，下载正确架构的新版安装包，按对应平台步骤更新。当前没有桌面自动更新功能。
+3. 打开新版，必要时重新登录同一账号。原生登录与 Web 登录独立，但读取同一服务器中的账号数据。
+4. 退出登录或卸载客户端不会主动删除云端账号数据；未同步的修改和未保存草稿不能依赖重装恢复。
+
+客户端需要联网，暂不提供完整离线数据库与离线编辑同步。手机和电脑同时修改发生冲突时，先导出当前内容备份，再刷新读取云端最新版本。完整备份包含日记和照片，请保存在可信位置。
 
 ## 核心功能
 
@@ -139,9 +258,15 @@ KeepDo 是一款把长期目标、日常习惯和待办行动放在一起的个�
 
 本地开发建议使用 **Node.js 24 LTS 与 pnpm 10**；当前本地核对环境为 Node.js 24.11.0、pnpm 10.33.0。构建依赖要求 Node.js 22.12 及以上，测试脚本直接运行 TypeScript，使用建议版本即可免去额外转译配置。项目采用 pnpm workspace，并通过 Catalogs 管理部分依赖版本。
 
+以下命令供源码开发者使用。仅运行 Web 前后端不需要安装 Rust；构建原生客户端时再准备对应平台环境。
+
 ```bash
+# 获取源码，进入项目根目录
+git clone https://github.com/shindouhiro/KeepDo.git
+cd KeepDo
+
 # 安装依赖
-pnpm install
+pnpm install --frozen-lockfile
 
 # 一条命令启动前后端（清理端口、迁移本地数据库、构建资源，等待 API 就绪后启动前端）
 pnpm dev
@@ -164,6 +289,28 @@ pnpm dev:api
 `pnpm dev` 会先清理占用 `5173`、`8787` 的进程及相关开发进程；也可执行 `pnpm clean:ports` 单独清理。当前清理脚本使用 `lsof` 和 `ps`，适用于提供这些命令的开发环境。
 
 前端 `/api` 请求代理到 `localhost:8787`。单独运行 `pnpm dev:web` 时，需要另开终端运行 `pnpm dev:api`；首次单独启动后端前，先执行 `pnpm db:migrate:local` 和 `pnpm build:cloudflare`。
+
+Windows，或不希望运行端口清理脚本时，可分别启动两个终端：
+
+```bash
+# 终端一：准备本地数据库和资源，然后保持 API 运行
+pnpm db:migrate:local
+pnpm build:cloudflare
+pnpm dev:api
+```
+
+```bash
+# 终端二：启动前端
+pnpm dev:web
+```
+
+| 地址 / 端口 | 提供什么 | 使用方式 |
+| --- | --- | --- |
+| `http://localhost:5173` | Vite 热更新前端 | 浏览器日常开发；API 经代理访问 8787 |
+| `http://localhost:8787` | Worker API 与已构建的静态页面 | 本地账号、数据库与完整生产构建预览 |
+| `http://localhost:8787/api/health` | 健康检查 | 正常返回 `{"status":"ok"}` |
+
+本地账号与数据位于 Wrangler 的本地 D1 状态中；它们不与线上数据库同步。切换到本地后看不到线上数据属于环境隔离，需要注册本地测试账号，或按需导入自己的备份。
 
 `pnpm preview` 仅预览静态前端，不提供账号与数据 API。要验证完整生产构建，构建后运行 `pnpm dev:api`，访问 [http://localhost:8787](http://localhost:8787)。
 
@@ -195,19 +342,7 @@ pnpm build:extension
 
 工作流在推送到 `main`、提交面向 `main` 的 Pull Request 时自动运行，也支持通过 **Run workflow** 手动触发。它会先运行单元测试，再构建并检查 ZIP 完整性；打包或上传产物失败会使工作流失败。安装包以原始 ZIP 上传，下载后只需解压一次。
 
-发布新版本使用 [bumpp](https://github.com/antfu-collective/bumpp)，需要 Node.js 22.18+（22.x）或 24.11+（24.x）。在 `main` 分支提交完代码、确保工作区干净后运行：
-
-```bash
-# 交互选择版本并确认发布
-pnpm release
-
-# 或指定版本增量，仍会在执行前请求确认
-pnpm release --release patch
-```
-
-`bump.config.ts` 会统一更新 `package.json` 与 `extension/manifest.json` 的版本；发布检查会同步 Rust 工程及锁文件中的 KeepDo 版本，运行测试、类型检查、主应用与扩展构建，然后自动创建版本提交、`v<版本号>` 标签并推送。发布前要求工作区干净，版本提交包含检查阶段生成的版本同步修改。Chrome 扩展请使用正式的 `patch` / `minor` / `major` 版本，不使用带 `beta` 等后缀的预发布版本。如果发布前检查失败，修复问题后可运行 `pnpm release:check` 重新验证，版本文件改动会保留供检查。
-
-标签推送后，工作流会校验标签与扩展版本一致，构建通过后自动创建 GitHub Release 并附加 `dist-extension.zip`。Release 中的安装包不受 Actions 产物 30 天保留期限制；重新运行标签工作流会更新同版本的安装包。
+扩展与原生客户端共用项目版本与 `vX.Y.Z` 标签。维护者的版本更新、自动打包和附件补传步骤统一见 [版本发布与补传安装包](#版本发布与补传安装包)。
 
 本地加载步骤：
 
@@ -220,7 +355,7 @@ pnpm release --release patch
 | 遇到的问题 | 处理方式 |
 | --- | --- |
 | 提示服务无法访问或连接超时 | 点击「在网页中打开」检查目标站点是否可访问，网络恢复后点击「重新连接」 |
-| 旧版仍停留在账号服务错误页 | 重新构建并加载 `dist-extension/`，确认扩展管理页版本为 `1.0.1`，再重新打开新标签页或侧栏 |
+| 旧版仍停留在账号服务错误页 | 重新构建并加载 `dist-extension/`，确认扩展管理页版本与本次下载的 Release 一致，再重新打开新标签页或侧栏 |
 | 网页可访问，内嵌工作区仍无法使用 | 先通过「在网页中打开」继续使用；自建部署需检查站点是否允许被内嵌 |
 | 没有生成压缩包 | 检查系统 `zip` 命令；可直接加载已生成的 `dist-extension/` 目录 |
 
@@ -261,6 +396,20 @@ KeepDo/
 本项目通过 Cloudflare Workers 托管前端静态资源与同源 `/api/*` 接口，通过 D1 持久保存账号、会话及业务数据，部署设置保存在 `wrangler.jsonc`。`pnpm build:cloudflare` 使用根路径资源地址，普通 `pnpm build` 保留 GitHub Pages 所需的相对路径。
 
 线上地址：[KeepDo](https://keepdo.shindouhiro.workers.dev)。
+
+### 首次部署到自己的账户
+
+1. 准备 Cloudflare 账户，在本地完成 `pnpm install --frozen-lockfile`。
+2. 执行 `pnpm cf:login` 在浏览器授权，再用 `pnpm cf:whoami` 确认目标账户。
+3. 在目标账户创建 D1：`pnpm exec wrangler d1 create keepdo-db`。如果已有该项目的数据库，应复用它。
+4. 将命令返回的实际数据库 ID 写入 `wrangler.jsonc` 的 `d1_databases[0].database_id`；保留绑定名 `DB` 和 `migrations_dir`。仓库中已有的 ID 属于当前线上环境，不能直接用于另一个账户。
+5. 按需调整 Worker 的 `name`；修改数据库名称时也要同步 `package.json` 中两个 `db:migrate:*` 脚本使用的名称。
+6. 执行 `pnpm deploy:check`，通过后执行 `pnpm run deploy`。首次发布会应用全部未执行的迁移，后续发布只应用新增迁移。
+7. 打开发布终端返回的实际 HTTPS 地址，检查页面及 `/api/health`，再注册该部署中的账号。
+
+自己的部署与 KeepDo 默认站点拥有独立数据库和账号。已有原生安装包仍连接编译时固定的默认服务；连接自己的服务需要 [重新编译原生客户端](#连接自己的服务)，仅部署网页不会改变已安装客户端的服务器。
+
+### 日常更新与部署命令
 
 ```bash
 # 首次部署：在浏览器完成 Cloudflare 授权
@@ -349,6 +498,23 @@ API 集成测试只默认访问本地环境，会创建专用测试账号；远�
 
 原生包内置 Vue 界面，通过 Rust 请求桥连接同一套 Workers/D1，复用线上账号、目标、习惯、待办与图文日记。需要联网使用；首版未包含完整离线编辑、自动冲突合并或桌面自动更新。外部 HTTPS 链接使用系统浏览器打开，正常退出时先处理抽屉草稿与待同步内容。
 
+### 环境与平台要求
+
+| 开发目标 | 需要准备的工具 |
+| --- | --- |
+| 全部原生平台 | Node.js 24、pnpm 10、Rust stable（至少 1.90），以及同一套 rustup 管理的 cargo/rustc |
+| macOS | macOS、完整 Xcode / 对应命令行工具；分别构建 Apple Silicon 与 Intel target |
+| Windows | Windows、MSVC Rust 工具链、Visual Studio C++ 构建工具及 WebView2 |
+| Linux | Linux 桌面构建环境、WebKitGTK 4.1 开发库、C/C++ 工具链、SSL/DBus 等依赖；运行时需可用的 Secret Service |
+| Android | JDK 17、Android SDK、NDK；设置 `JAVA_HOME`、`ANDROID_HOME`、`NDK_HOME` |
+| iOS | Apple Silicon Mac、完整 Xcode、相应模拟器运行时与 Rust iOS target；真机包另需开发者团队与签名 |
+
+原生安装包应在相应系统构建。Windows、Linux、macOS 可用 GitHub Actions 矩阵分别打包，不是运行一次本机 `pnpm build:desktop` 就同时生成所有系统安装器。平台依赖的安装方式见 [Tauri 官方环境要求](https://v2.tauri.app/start/prerequisites/)。
+
+当前 Android CI 固定使用 SDK Platform 36、Build Tools 36.0.0、NDK 29.0.14206865 和 JDK 17；本地排查构建差异时先与 `.github/workflows/native.yml` 对齐。
+
+### 桌面开发与本地构建
+
 ```sh
 # 安装前端依赖，并准备 Rust 与对应平台的开发环境
 pnpm install --frozen-lockfile
@@ -374,7 +540,63 @@ pnpm build:desktop
 | Android | 初始化后运行 `pnpm build:android --debug --target aarch64 --apk --ci` | arm64 调试 APK 的 CI 构建成功，尚未进行真机验收；最低 API 24 |
 | iOS | 初始化后运行 `pnpm build:ios --debug --target aarch64-sim --no-sign --archive-only --ci` | arm64 模拟器归档已本机构建，最低 iOS 17.4；真机分发需签名 |
 
-移动端首次运行前，分别执行 `pnpm tauri android init --ci` 或 `pnpm tauri ios init --ci`；Android 需 JDK/SDK/NDK，iOS 需 macOS 与完整 Xcode。生成工程、编译缓存、签名密钥和本机配置不提交仓库。完整要求见 [原生客户端指南](docs/native.md)。
+### Android 与 iOS 本地构建
+
+Android：配置好上述环境变量后，在项目根目录执行：
+
+```sh
+pnpm tauri android init --ci
+pnpm build:android --debug --target aarch64 --apk --ci
+```
+
+APK 位于 `src-tauri/gen/android/app/build/outputs/apk/` 下的相应子目录。需要连接设备调试时使用 `pnpm dev:android`。正式 APK/AAB 的固定密钥与签名配置见 [Android 初始化与签名](docs/native.md#android-初始化与签名)。
+
+iOS：在具有完整 Xcode 的 Apple Silicon Mac 上执行：
+
+```sh
+pnpm tauri ios init --ci
+pnpm build:ios --debug --target aarch64-sim --no-sign --archive-only --ci
+```
+
+归档位于 `src-tauri/gen/apple/build/`；需要运行调试时使用 `pnpm dev:ios`。构建模拟器包不需要真机签名配置；真机与商店分发仍需 Apple 团队与证书。
+
+Android/iOS 初始化后的工程位于 `src-tauri/gen/`。生成工程、编译缓存、签名密钥和本机配置不提交仓库；不要为解决构建问题删除仍需保留的签名文件。应用标识或最低系统版本变化时，先备份必要的本机配置，再按 [原生客户端指南](docs/native.md) 重新生成工程。
+
+### 连接自己的服务
+
+`KEEPDO_API_ORIGIN` 只填写服务器的 HTTPS 来源，不附加 `/api`，也不包含账号、令牌或密码。它在 Rust 编译时写入安装包，修改网页环境变量或安装后的设置不会改写已经打包的来源。
+
+macOS / Linux Shell 示例，先将示例域名替换为自己的已部署服务：
+
+```sh
+KEEPDO_API_ORIGIN=https://your-keepdo.example.com pnpm build:desktop
+```
+
+Windows PowerShell 示例：
+
+```powershell
+$env:KEEPDO_API_ORIGIN = "https://your-keepdo.example.com"
+pnpm build:desktop --bundles nsis
+Remove-Item Env:KEEPDO_API_ORIGIN
+```
+
+Android/iOS 也要在相应构建命令执行前设置同一变量。发布构建只接受 HTTPS；调试构建仅额外允许本机 `localhost` / `127.0.0.1` 的 HTTP 来源。手机 / 模拟器内的 localhost 不代表开发电脑，默认的本机 API 地址不能直接用于异机设备调试。
+
+自建服务必须已部署 `/api/native/*` 与原生会话迁移。原生登录与 Web Cookie 隔离，系统凭据按服务器来源存储；换服务器后应在新服务中重新注册或登录，不会自动迁移旧服务器的数据。
+
+### 功能边界与验证范围
+
+| 能力 | 当前行为 |
+| --- | --- |
+| 账号与云端数据 | 多端登录同一服务器中的同一账号可读取同一数据；采用版本检查防止静默覆盖 |
+| 凭据保存 | Web 使用 HttpOnly Cookie；原生令牌由 Rust 保存在系统安全凭据存储，界面不接触原生令牌 |
+| 备份与记录图片 | 复用完整 JSON 备份及 PNG/SVG 导出；桌面使用系统文件保存对话框 |
+| PNG 剪贴板复制 | 桌面支持；Android/iOS 提示先保存 PNG 后分享 |
+| 正常关闭与返回 | 桌面关闭 / 菜单退出、Android 返回键先处理当前抽屉和草稿；存在未同步内容时先尝试保存 |
+| 离线与更新 | 需要联网，尚无完整离线编辑同步或桌面自动更新 |
+| 运行验收 | macOS arm64 已本机验证主要操作；其他原生平台目前已通过 CI 构建，尚未完成对应设备的完整运行验收 |
+
+### 构建产物与公开下载
 
 [原生客户端构建工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/native.yml) 在推送 `main`、`v*` / `native-v*` 标签、面向 `main` 的 PR 或手动触发时运行，先检查单元测试、Web 构建及本地 D1 的 Web/原生 API，再构建桌面、Android 和 iOS 模拟器产物。成功运行的 **Artifacts** 保留原生测试包 14 天，需要登录 GitHub 下载；具体平台是否构建成功，以工作流结果为准。
 
@@ -383,3 +605,82 @@ pnpm build:desktop
 当前产物用于测试：Windows/macOS 安装器未配置正式发行签名或公证，Android 使用调试签名，iOS 归档仅用于模拟器。发布原生附件不会发布商店或部署 Workers。桌面支持 PNG 剪贴板复制；Android/iOS 请保存 PNG 后分享。
 
 原生验证命令为 `pnpm build:native:web`、`pnpm check:native`、`pnpm test:native` 和 `pnpm lint:native`。Web/原生 API 集成测试统一使用 `pnpm test:api`，仅对本地测试数据库执行。
+
+## 版本发布与补传安装包
+
+### 发布一个新版本
+
+维护者使用 [bumpp](https://github.com/antfu-collective/bumpp)，Node.js 需要 22.18+（22.x）或 24.11+（24.x），项目建议使用 Node.js 24。在 `main` 分支提交并同步准备发布的代码，确保 `git status --short` 没有未提交修改，检查 GitHub 的 Actions 与 Release 写入权限后运行：
+
+```bash
+# 交互选择版本并确认
+pnpm release
+
+# 或发布下一个补丁版本，例如 1.0.2 → 1.0.3
+pnpm release --release patch
+```
+
+这两条命令选择其中一条执行；它们会实际创建提交、标签并推送，不只是生成本地 ZIP。完整发布流程如下：
+
+1. 更新 `package.json` 与 `extension/manifest.json` 的版本。
+2. 将 Rust 工程及 `Cargo.lock` 中 KeepDo 自身的版本同步，保留依赖版本。
+3. 运行 `pnpm release:check`：单元测试、前端与 Worker 类型检查、Web 和 Chrome 扩展构建。
+4. 创建版本提交、`vX.Y.Z` 标签，并推送 `main` 和标签。
+5. GitHub Actions 分别构建扩展及各原生平台，再将最终文件发布到同一 Release。
+
+Chrome 扩展使用正式的 `patch` / `minor` / `major` 版本，不使用 `beta` 等预发布后缀。原生包仍为前述测试分发状态，更新版本号不会自动获得平台签名。
+
+如果本地发布检查失败，修复原因后先查看 `git status` 和版本文件，再运行 `pnpm release:check` 验证。失败时可能已保留版本变更，不应直接反复执行补丁升版。不要移动或覆盖已公开的标签。
+
+### 各工作流负责什么
+
+| 工作流 | 何时运行 | 结果 |
+| --- | --- | --- |
+| [Build Chrome Extension](https://github.com/shindouhiro/KeepDo/actions/workflows/extension.yml) | `main`、面向 `main` 的 PR、`v*` 标签或手动运行 | 扩展 ZIP；标签构建成功后附加 `dist-extension.zip` 到 Release |
+| [构建 KeepDo 原生客户端](https://github.com/shindouhiro/KeepDo/actions/workflows/native.yml) | `main`、`v*` / `native-v*` 标签、面向 `main` 的 PR 或手动运行 | 先校验单元测试、Web 构建与本地 API，再构建全部原生平台，上传 Artifacts |
+| [发布 KeepDo 原生安装包](https://github.com/shindouhiro/KeepDo/actions/workflows/publish-native.yml) | 原生标签构建成功后，或指定原标签与构建 ID 手动运行 | 校验来源、标签与版本，收集七个原生分发文件及校验和，上传 Release 并核对附件 |
+| [Deploy to GitHub Pages](https://github.com/shindouhiro/KeepDo/actions/workflows/deploy.yml) | 以该工作流配置为准 | 发布静态前端；不部署 Workers/D1，也不提供完整账号后端 |
+
+发布成功要同时满足：扩展标签构建成功、原生标签构建全部成功、原生附件发布成功，且 Release Assets 中能看到预期文件。只有 Actions 显示原生编译成功，不代表安装包已上传到 Release。
+
+### Release 没有安装包时如何处理
+
+1. 在原生构建工作流中，选择与目标标签一致的一次运行；确认全部任务成功。不能用普通 `main` 分支构建替代标签构建。
+2. 从该运行的 URL 获取数字 ID，例如 `.../actions/runs/43381842956` 中的 `43381842956`。
+3. 确认其 Artifacts 仍存在且未过期。原生保留 14 天；过期后需要对原标签重新构建。
+4. 打开「发布 KeepDo 原生安装包」，点击 **Run workflow**，选择 `main`，填写目标 `tag` 和刚才的 `run_id`。
+5. 等待发布任务成功，刷新对应 Release 的 Assets，检查附件名、大小和 `SHA256SUMS-native.txt`。
+
+GitHub CLI 也可操作，以下是 `v1.0.2` 的实际补传示例；处理其他版本时替换为对应标签及成功运行 ID：
+
+```bash
+gh workflow run publish-native.yml --ref main \
+  -f tag=v1.0.2 \
+  -f run_id=43381842956
+```
+
+补传复用既有成功构建，不会增加版本号，也不会移动标签；同名附件会被替换。普通分支、失败构建、错误标签、缺失或重复产物会被拒绝。若需对已过期的标签产物重新构建，可先在原标签的构建运行页面重新运行任务，成功后使用新运行中有效的产物再补传。
+
+## 常见问题
+
+| 问题 | 排查与处理 |
+| --- | --- |
+| Release 只有 `Source code` 或扩展 ZIP | 源码不是安装包；查看原生标签构建与「发布 KeepDo 原生安装包」两个流程，按上文补传 |
+| 在 Actions 找到产物，但需要登录或已经过期 | 优先使用公开 Release 的 Assets；Actions 的原生产物保留 14 天，Release 附件不受该期限限制 |
+| 不知道选 arm64 还是 x64 | Mac 按「关于本机」芯片选；Windows/Linux 当前提供 x64，Android 当前提供 arm64 |
+| macOS 提示无法验证开发者 / 已损坏 | 确认芯片、macOS 14.4+、来源与哈希；参考上文 macOS 安装和 Apple 说明，必要时使用 Web |
+| Windows 无法显示页面或提示 WebView2 缺失 | 安装官方 WebView2 Runtime 后重启；安装器被组织策略拦截时使用 Web |
+| Linux 无法启动或提示 FUSE / 共享库缺失 | 根据发行版补齐兼容依赖，或在 Debian/Ubuntu 系统选择 DEB；保留终端错误供排查 |
+| Linux 无法保存或读取登录凭据 | 确认桌面 Secret Service 已启动、密钥环已解锁；重复点击登录无法替代系统服务 |
+| Android APK 无法安装或覆盖旧版 | 核对 arm64、系统版本和可用空间；签名不一致时先确认云端保存、导出备份，再卸载旧调试包后重装 |
+| iPhone 不能安装 ZIP，或找不到 IPA | 目前只发布 iOS 模拟器归档；真机需要另外签名构建，不能改文件后缀安装 |
+| 客户端登录失败，但网页可用 | 确认两者访问同一服务器；自建服务需有 `/api/native/*` 与原生会话表，并检查系统凭据存储是否可用 |
+| 本地启动后看不到线上账号与内容 | 本地和线上数据库隔离，先注册本地账号；确认访问端口和编译时 API 来源 |
+| 手机调试连接不到电脑的 `localhost:8787` | 设备内的 localhost 指向设备自身；开发者需另行配置可访问的 HTTPS 服务和编译时来源 |
+| 更换网页部署地址后，安装包仍连接旧站点 | `KEEPDO_API_ORIGIN` 已写入原生包，必须带新来源重新编译并安装 |
+| 升级后需要重新登录 | Web 与原生会话独立，会话也会过期；登录同一服务器中的原账号读取云端数据 |
+| 提示「其他设备已更新数据」 | 发生版本冲突；先导出当前内容备份，再刷新读取最新云端内容，避免盲目覆盖 |
+| 手机不能复制记录长图 | 当前移动端未支持 PNG 剪贴板复制，保存 PNG 后通过系统分享 |
+| 断网后不能登录或读取完整记录 | 当前依赖联网 API，尚未提供完整离线数据库；网络恢复后重试 |
+
+提交问题时，请提供平台与芯片、系统版本、KeepDo 版本、下载文件名、操作步骤和完整错误提示；构建问题附 Actions 运行链接。不要附密码、会话令牌、签名密钥或未经处理的私人备份。
