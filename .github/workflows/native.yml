@@ -3,7 +3,7 @@ name: 构建 KeepDo 原生客户端
 on:
   push:
     branches: [main, codex/cross-platform-tauri]
-    tags: ['native-v*']
+    tags: ['v*', 'native-v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -120,6 +120,8 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: 安装 Android SDK 与 NDK
         run: |
           sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865'

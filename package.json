@@ -18,7 +18,7 @@
     "build:cloudflare": "pnpm build --mode cloudflare",
     "preview": "vite preview",
     "release": "bumpp",
-    "release:check": "pnpm test && pnpm build && pnpm build:extension",
+    "release:check": "node scripts/sync-native-version.mjs && pnpm test && pnpm build && pnpm build:extension",
     "deploy": "pnpm build:cloudflare && pnpm db:migrate:remote && wrangler deploy",
     "deploy:check": "pnpm build:cloudflare && wrangler deploy --dry-run",
     "cf:login": "wrangler login",

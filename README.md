@@ -205,7 +205,7 @@ pnpm release
 pnpm release --release patch
 ```
 
-`bump.config.ts` 会统一更新 `package.json` 与 `extension/manifest.json` 的版本，运行测试、类型检查、主应用与扩展构建，然后自动创建版本提交、`v<版本号>` 标签并推送。Chrome 扩展请使用正式的 `patch` / `minor` / `major` 版本，不使用带 `beta` 等后缀的预发布版本。如果发布前检查失败，修复问题后可运行 `pnpm release:check` 重新验证，版本文件改动会保留供检查。
+`bump.config.ts` 会统一更新 `package.json` 与 `extension/manifest.json` 的版本；发布检查会同步 Rust 工程及锁文件中的 KeepDo 版本，运行测试、类型检查、主应用与扩展构建，然后自动创建版本提交、`v<版本号>` 标签并推送。发布前要求工作区干净，版本提交包含检查阶段生成的版本同步修改。Chrome 扩展请使用正式的 `patch` / `minor` / `major` 版本，不使用带 `beta` 等后缀的预发布版本。如果发布前检查失败，修复问题后可运行 `pnpm release:check` 重新验证，版本文件改动会保留供检查。
 
 标签推送后，工作流会校验标签与扩展版本一致，构建通过后自动创建 GitHub Release 并附加 `dist-extension.zip`。Release 中的安装包不受 Actions 产物 30 天保留期限制；重新运行标签工作流会更新同版本的安装包。
 
@@ -376,7 +376,7 @@ pnpm build:desktop
 
 移动端首次运行前，分别执行 `pnpm tauri android init --ci` 或 `pnpm tauri ios init --ci`；Android 需 JDK/SDK/NDK，iOS 需 macOS 与完整 Xcode。生成工程、编译缓存、签名密钥和本机配置不提交仓库。完整要求见 [原生客户端指南](docs/native.md)。
 
-[原生客户端构建工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/native.yml) 在推送 `main`、面向 `main` 的 PR 或手动触发时运行，先检查单元测试、Web 构建及本地 D1 的 Web/原生 API，再构建桌面、Android 和 iOS 模拟器产物。成功运行的 **Artifacts** 保留原生测试包 14 天，需要登录 GitHub 下载；具体平台是否构建成功，以工作流结果为准。
+[原生客户端构建工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/native.yml) 在推送 `main`、`v*` / `native-v*` 标签、面向 `main` 的 PR 或手动触发时运行，先检查单元测试、Web 构建及本地 D1 的 Web/原生 API，再构建桌面、Android 和 iOS 模拟器产物。成功运行的 **Artifacts** 保留原生测试包 14 天，需要登录 GitHub 下载；具体平台是否构建成功，以工作流结果为准。
 
 当前产物用于测试：Windows/macOS 安装器未配置正式发行签名或公证，Android 使用调试签名，iOS 归档仅用于模拟器。工作流不会自动发布商店、创建公开 Release 或部署 Workers。桌面支持 PNG 剪贴板复制；Android/iOS 请保存 PNG 后分享。
 
