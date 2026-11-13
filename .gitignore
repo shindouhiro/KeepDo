@@ -30,3 +30,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 原生构建产物与本机 IDE 配置
+/dist-native/
+/src-tauri/target/
+/src-tauri/gen/schemas/
+/src-tauri/gen/android/
+/src-tauri/gen/apple/
+*.jks
+*.keystore

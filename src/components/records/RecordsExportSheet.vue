@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import JournalImage from '../journal/JournalImage.vue'
 import type { JournalEntry } from '../../../shared/journal'
 import { RECORD_EXPORT_WIDTH } from '../../../shared/record-image-export'
 import JournalMarkdown from '../journal/JournalMarkdown.vue'
@@ -25,7 +26,7 @@ defineProps<{
       </div>
       <JournalMarkdown v-if="entry.content" :content="entry.content" :id-prefix="`records-export-content-${entry.id}`" />
       <div v-if="entry.images.length" class="mt-4 space-y-3">
-        <img v-for="(image, index) in entry.images" :key="image.id" :src="image.url" :alt="`${entry.date} 的第 ${index + 1} 张照片`" loading="eager" class="block h-auto max-h-[1000px] max-w-full rounded-xl object-contain" />
+        <JournalImage v-for="(image, index) in entry.images" :key="image.id" :src="image.url" :alt="`${entry.date} 的第 ${index + 1} 张照片`" loading="eager" class="block h-auto max-h-[1000px] max-w-full rounded-xl object-contain" />
       </div>
     </article>
     <footer class="pt-3 text-center text-xs tracking-wide text-slate-400">每一次记录，都让成长有迹可循。 · KeepDo</footer>

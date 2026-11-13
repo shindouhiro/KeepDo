@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "KeepDo",
+  "version": "../package.json",
+  "identifier": "dev.keepdo.client",
+  "build": {
+    "beforeDevCommand": "pnpm dev:web --host 0.0.0.0 --port 5173 --strictPort",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm build:native:web",
+    "frontendDist": "../dist-native"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "KeepDo",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 360,
+        "minHeight": 600,
+        "backgroundColor": "#F8F9FA"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'",
+      "capabilities": [
+        "main"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "目标、习惯、待办与成长记录",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "iOS": {
+      "minimumSystemVersion": "17.4"
+    },
+    "android": {
+      "minSdkVersion": 24
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.4"
+    }
+  }
+}

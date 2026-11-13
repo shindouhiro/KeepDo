@@ -463,10 +463,10 @@ pnpm cf:login
 pnpm deploy:check
 
 # 完整部署（构建 + 迁移 + 发布）
-pnpm deploy
+pnpm run deploy
 ```
 
-**注意**：`pnpm deploy` 会自动执行数据库迁移，请勿单独运行 `wrangler deploy`。
+**注意**：`pnpm run deploy` 会自动执行数据库迁移，请勿单独运行 `wrangler deploy`。
 
 ---
 
@@ -874,7 +874,7 @@ pnpm db:migrate:local  # 本地迁移
 pnpm db:migrate:remote # 线上迁移
 
 # 部署
-pnpm deploy           # 完整部署
+pnpm run deploy           # 完整部署
 pnpm deploy:check     # 检查配置
 
 # Cloudflare
@@ -915,3 +915,13 @@ pnpm cf:whoami        # 查看当前账户
 
 **最后更新**：2026-10-30  
 **维护者**：KeepDo 项目团队
+
+## 原生客户端（Tauri 2）
+
+- `src-tauri/` 保存 Rust 请求桥、系统凭据存储、权限、图标与平台配置；生成的 Android/iOS 工程及 target 不提交。
+- `src/lib/platform/` 统一网络、文件保存、图片复制和外部链接；业务组件不得直接使用原生令牌。
+- `/api/native/*` 镜像现有 API，Rust 发出 `X-KeepDo-Client: native-v1`，登录/注册返回独立原生会话令牌；其他接口使用 Bearer。原生通道拒绝浏览器 Origin/Sec-Fetch 请求和 Cookie 认证，Web 同源检查保持不变。
+- 原生会话使用 `native_sessions` 表，令牌 SHA-256 摘要入库；令牌仅由 Rust 访问系统凭据存储，不进入 WebView/localStorage。
+- `KEEPDO_API_ORIGIN` 为 Rust 编译时来源；默认线上站点，发布构建必须为 HTTPS。详见 `docs/native.md`。
+- `pnpm build:native:web` 输出 `dist-native/`，`pnpm build:desktop` 打包当前桌面平台。移动端首次需运行 `pnpm tauri android init` / `pnpm tauri ios init`。
+- GitHub Actions 原生构建上传测试产物，不自动部署后端或发布商店。正式签名与分发必须另行配置凭据。

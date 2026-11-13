@@ -136,3 +136,10 @@ html:has(.app-drawer[open]) { overflow: hidden; }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.5);
 }
+
+/* 原生窗口预留刘海、状态栏和手势区域，抽屉内部沿用已有安全区域样式。 */
+html[data-platform="native"] body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overscroll-behavior-y: none;
+}
+html[data-platform="native"] #app { min-height: 100dvh; }

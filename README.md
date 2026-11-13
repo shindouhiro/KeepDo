@@ -2,9 +2,9 @@
 
 **每日行动 · 沉淀长期目标**
 
-KeepDo 是一款把长期目标、日常习惯和待办行动放在一起的个人管理工具。从「读完 12 本书」到「每天阅读 30 分钟」，用计划日历安排今天，用打卡记录坚持，用成长时间线留下过程。
+KeepDo 是一款把长期目标、日常习惯和待办行动放在一起的个人管理工具。从「读完 12 本书」到「每天阅读 30 分钟」，用计划日历安排今天，用打卡记录坚持，用成长时间线留下过程。同一套 Vue 界面提供 Web，以及基于 Tauri 2 的 Windows、macOS、Linux、Android 和 iOS 客户端构建。
 
-[在线体验](https://keepdo.shindouhiro.workers.dev) · [产品截图](#产品截图) · [本地运行](#启动与运行) · [Chrome 扩展](#chrome-扩展实验性) · [部署说明](#部署到-cloudflare) · [账号与备份](#账号与同步) · [开发验证](#验证)
+[在线体验](https://keepdo.shindouhiro.workers.dev) · [产品截图](#产品截图) · [本地运行](#启动与运行) · [原生客户端](#跨平台原生客户端) · [Chrome 扩展](#chrome-扩展实验性) · [部署说明](#部署到-cloudflare) · [账号与备份](#账号与同步) · [开发验证](#验证)
 
 ![KeepDo 长期目标工作台：数值目标、天数目标与里程碑目标](docs/screenshots/goals.jpg)
 
@@ -22,6 +22,7 @@ KeepDo 是一款把长期目标、日常习惯和待办行动放在一起的个�
 | 统计复盘 | 查看近 12 周行动热力图、习惯打卡次数、最长连击与目标进度 |
 | 账号与数据 | 注册登录、跨设备读取账号数据，通过 JSON 完整备份与恢复基础数据、图文日记及图片 |
 | GitHub 异地备份 | 连接私有仓库，手动保存完整快照，分页查看历史并确认恢复 |
+| 原生客户端 | 共用云端账号与数据，使用系统安全凭据存储、文件保存对话框、图片导出与退出草稿保护 |
 | Chrome 扩展（实验性） | 在新标签页或侧栏打开线上工作区，提供连接检查、重试与网页入口 |
 | 深浅主题 | 跟随系统初始化主题，也可手动切换；界面适配桌面与移动端 |
 
@@ -125,6 +126,7 @@ KeepDo 是一款把长期目标、日常习惯和待办行动放在一起的个�
 - **Tailwind CSS v4**：现代轻量原子样式系统，深浅主题自适应
 - **Pinia**：响应式状态管理与账号数据同步
 - **Cloudflare Workers + D1**：账号认证、同源 API 与持久化数据库
+- **Tauri 2 + Rust**：桌面与移动客户端、固定来源请求桥及系统安全凭据存储
 - **Zod**：前后端共享的数据校验与备份格式校验
 - **Markdown-it + Highlight.js**：日记 Markdown 渲染与代码语法高亮
 - **HTML-to-image**：记录长图生成，支持 SVG、PNG 和剪贴板复制
@@ -232,19 +234,23 @@ KeepDo/
 │   ├── components/       # 今日专注、目标、记录、统计、账号与备份界面
 │   ├── composables/      # 日记、抽屉、快捷添加、备份与记录图片导出
 │   ├── stores/           # Pinia 业务数据、账号与日记状态
-│   └── lib/              # API、Markdown、图片压缩与剪贴板处理
+│   └── lib/              # API、Markdown、图片压缩与跨平台网络/文件/剪贴板适配
+├── src-tauri/            # Rust 请求桥、系统凭据存储、权限、图标与平台配置
 ├── server/
 │   ├── migrations/       # D1 数据库迁移
-│   ├── auth.ts           # 账号认证与会话
+│   ├── auth.ts           # 账号认证、Web Cookie 与独立原生会话
+│   ├── native.ts         # 原生请求标识与 Bearer 格式校验
 │   ├── journal.ts        # 目标、习惯日记与图片接口
 │   ├── backup.ts         # 完整备份导出与事务恢复
 │   └── github-backup.ts  # 私有仓库连接、快照与历史恢复
 ├── shared/               # 前后端共用的数据校验、日历与打卡逻辑
 ├── extension/            # 实验性 Chrome 扩展连接界面、清单、后台脚本与图标
-├── scripts/              # 开发端口清理与扩展打包脚本
+├── scripts/              # 开发端口清理、扩展打包与原生构建/签名配置脚本
+├── .github/workflows/    # Web 静态发布、扩展及多平台原生构建
 ├── tests/                # 单元测试与 API 集成测试
 ├── docs/plans/           # 功能设计与实现计划
 ├── docs/screenshots/     # README 产品实拍截图
+├── docs/native.md        # 原生开发、打包、签名与分发指南
 ├── pnpm-workspace.yaml   # Workspace 与 Catalogs 依赖版本管理
 ├── vite.extension.config.ts # 扩展连接界面的独立构建配置
 └── wrangler.jsonc        # Cloudflare Workers 与 D1 配置
@@ -275,13 +281,15 @@ pnpm run deploy
 
 `pnpm run deploy` 会先完成构建，再执行尚未应用的 D1 迁移，最后发布 Worker；任一步失败都会停止发布。`pnpm deploy:check` 仅检查构建和配置，不会更新线上数据库。请使用完整发布命令：单独运行 `wrangler deploy` 不会执行数据库迁移，可能导致日记保存、图片上传和时间线读取因缺少表或字段而返回 500。
 
+请保留命令中的 `run`：`pnpm deploy` 是 pnpm 自带的工作区部署命令，不会运行本项目的发布脚本。Cloudflare 负责托管 Web、API 和 D1 数据；原生安装包由本机或 GitHub Actions 构建后单独分发。原生客户端还需要 `0008_native_sessions.sql` 与 `/api/native/*` 路由，均已于 2026-11-13 部署至上述线上站点；自建部署请运行完整发布流程。
+
 当前发布更新同名 `keepdo` Worker，数据库绑定 `DB` 指向 `keepdo-db`。换账户部署时先创建目标 D1，再将实际 database_id 写入配置，不能沿用其他账户的数据库 ID。多账户时，部署前通过 `CLOUDFLARE_ACCOUNT_ID` 指定目标账户。令牌不应写入仓库。
 
 旧版本地数据不会自动上传。登录后可点击「导入旧数据」迁移当前浏览器的数据，或在设置中导入原站导出的 JSON；导入会替换当前账号数据，原始旧本地数据保留。当前版本支持用户名密码注册、登录及退出，暂不提供密码找回。
 
 ## 账号与同步
 
-- 用户名为 3–32 位字母、数字或下划线，不区分大小写；密码为 10–128 位。密码使用独立随机盐与原生 scrypt 保存摘要，登录会话保存在 HttpOnly Cookie 中。
+- 用户名为 3–32 位字母、数字或下划线，不区分大小写；密码为 10–128 位。密码使用独立随机盐与原生 scrypt 保存摘要，Web 登录使用 HttpOnly Cookie；原生登录使用独立的 30 天 Bearer 会话，由 Rust 直接存入系统安全凭据存储，令牌不进入 WebView 或 localStorage。
 - 数据库按服务端会话中的用户 ID 查询，客户端不能指定其他账号。数据库写入使用版本检查，另一台设备已修改时返回冲突，避免静默覆盖。
 - 页面顶部显示保存状态。保存失败时保留当前页面并重试；发生冲突时先在设置中导出备份，再刷新云端内容。未保存时关闭页面会提示。
 - 切回页面时，在没有本地未保存修改的情况下刷新云端数据；不是多人实时协作服务。
@@ -336,3 +344,40 @@ pnpm deploy:check
 API 集成测试只默认访问本地环境，会创建专用测试账号；远程验证必须显式指定测试目标。禁止将生产用户密码、会话或 API Token 提交到仓库。
 
 仓库当前的 `.github/workflows/deploy.yml` 发布到 GitHub Pages，仅执行依赖安装、前端构建与静态发布。完整 Workers / D1 应用请使用上述 Cloudflare 部署流程；单元测试与 API 集成测试需另外运行。
+
+## 跨平台原生客户端
+
+原生包内置 Vue 界面，通过 Rust 请求桥连接同一套 Workers/D1，复用线上账号、目标、习惯、待办与图文日记。需要联网使用；首版未包含完整离线编辑、自动冲突合并或桌面自动更新。外部 HTTPS 链接使用系统浏览器打开，正常退出时先处理抽屉草稿与待同步内容。
+
+```sh
+# 安装前端依赖，并准备 Rust 与对应平台的开发环境
+pnpm install --frozen-lockfile
+
+# 桌面开发，默认连接线上服务
+pnpm dev:native
+
+# 已启动本地 API 时，切换为本地开发服务
+KEEPDO_API_ORIGIN=http://localhost:8787 pnpm dev:native
+
+# 构建当前桌面平台的安装包
+pnpm build:desktop
+```
+
+`KEEPDO_API_ORIGIN` 在 Rust 编译时固定；更换服务来源后需重新编译，正式包只接受 HTTPS。Web 构建输出到 `dist/`，原生界面输出到 `dist-native/`；桌面安装包位于 `src-tauri/target/release/bundle/`，指定 Rust target 时位于对应 target 子目录。
+
+| 平台 | 构建入口 | 当前验证状态 |
+| --- | --- | --- |
+| Web | `pnpm build:cloudflare`，随后按上文部署 | 已部署 Cloudflare，页面、资源与接口验收通过 |
+| macOS | `pnpm build:desktop --bundles app,dmg` | Apple Silicon 的 app/DMG 已本机构建并验证核心操作，最低 macOS 14.4 |
+| Windows | `pnpm build:desktop --bundles nsis` | 已配置 x64 CI，尚待对应环境验证；需要 MSVC 与 WebView2 |
+| Linux | `pnpm build:desktop --bundles appimage,deb` | 已配置 x64 CI，尚待对应环境验证；需要 WebKitGTK 4.1 与 Secret Service |
+| Android | 初始化后运行 `pnpm build:android --debug --target aarch64 --apk --ci` | 已配置 arm64 调试 APK 构建，尚待执行验证；最低 API 24 |
+| iOS | 初始化后运行 `pnpm build:ios --debug --target aarch64-sim --no-sign --archive-only --ci` | arm64 模拟器归档已本机构建，最低 iOS 17.4；真机分发需签名 |
+
+移动端首次运行前，分别执行 `pnpm tauri android init --ci` 或 `pnpm tauri ios init --ci`；Android 需 JDK/SDK/NDK，iOS 需 macOS 与完整 Xcode。生成工程、编译缓存、签名密钥和本机配置不提交仓库。完整要求见 [原生客户端指南](docs/native.md)。
+
+[原生客户端构建工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/native.yml) 在推送 `main`、面向 `main` 的 PR 或手动触发时运行，先检查单元测试、Web 构建及本地 D1 的 Web/原生 API，再构建桌面、Android 和 iOS 模拟器产物。成功运行的 **Artifacts** 保留原生测试包 14 天，需要登录 GitHub 下载；具体平台是否构建成功，以工作流结果为准。
+
+当前产物用于测试：Windows/macOS 安装器未配置正式发行签名或公证，Android 使用调试签名，iOS 归档仅用于模拟器。工作流不会自动发布商店、创建公开 Release 或部署 Workers。桌面支持 PNG 剪贴板复制；Android/iOS 请保存 PNG 后分享。
+
+原生验证命令为 `pnpm build:native:web`、`pnpm check:native`、`pnpm test:native` 和 `pnpm lint:native`。Web/原生 API 集成测试统一使用 `pnpm test:api`，仅对本地测试数据库执行。

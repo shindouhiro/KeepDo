@@ -2,6 +2,7 @@ import type { Env, User } from './types.ts'
 import { credentialsSchema, emptyAppData } from '../shared/schema.ts'
 import { createToken, hashToken, hashPassword, verifyPassword } from './password.ts'
 import { HttpError, json, readBody } from './http.ts'
+import { nativeToken } from './native.ts'
 
 const sessionDuration = 30 * 24 * 60 * 60
 const dummyHash = `scrypt:${'0'.repeat(32)}:${'0'.repeat(128)}`
@@ -15,10 +16,11 @@ function sessionCookie(request: Request, token: string, maxAge = sessionDuration
 function requestToken(request: Request): string | undefined {
   return request.headers.get('Cookie')?.split(';').map(item => item.trim()).find(item => item.startsWith(`${cookieName(request)}=`))?.split('=')[1]
 }
-export async function getUser(request: Request, env: Env): Promise<User | null> {
-  const token = requestToken(request)
+export async function getUser(request: Request, env: Env, native = false): Promise<User | null> {
+  const token = native ? nativeToken(request) : requestToken(request)
   if (!token || !/^[a-zA-Z0-9_-]{43}$/.test(token)) return null
-  return env.DB.prepare('SELECT users.id, users.username FROM sessions JOIN users ON users.id = sessions.user_id WHERE token_hash = ? AND expires_at > ?')
+  const table = native ? 'native_sessions' : 'sessions'
+  return env.DB.prepare(`SELECT users.id, users.username FROM ${table} JOIN users ON users.id = ${table}.user_id WHERE token_hash = ? AND expires_at > ?`)
     .bind(hashToken(token), Math.floor(Date.now() / 1000)).first<User>()
 }
 async function rateLimit(env: Env, request: Request, action: string, username: string): Promise<void> {
@@ -35,12 +37,13 @@ async function rateLimit(env: Env, request: Request, action: string, username: s
     if (!result || result.attempts > key.limit) throw new HttpError(429, '尝试次数过多，请稍后再试')
   }
 }
-export async function handleAuth(request: Request, env: Env, path: string): Promise<Response> {
-  if (path === '/api/auth/session' && request.method === 'GET') return json({ user: await getUser(request, env) })
+export async function handleAuth(request: Request, env: Env, path: string, native = false): Promise<Response> {
+  const table = native ? 'native_sessions' : 'sessions'
+  if (path === '/api/auth/session' && request.method === 'GET') return json({ user: await getUser(request, env, native) })
   if (path === '/api/auth/logout' && request.method === 'POST') {
-    const token = requestToken(request)
-    if (token) await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(hashToken(token)).run()
-    return json({ success: true }, 200, { 'Set-Cookie': sessionCookie(request, '', 0) })
+    const token = native ? nativeToken(request) : requestToken(request)
+    if (token) await env.DB.prepare(`DELETE FROM ${table} WHERE token_hash = ?`).bind(hashToken(token)).run()
+    return json({ success: true }, 200, native ? {} : { 'Set-Cookie': sessionCookie(request, '', 0) })
   }
   if (!['/api/auth/login', '/api/auth/register'].includes(path) || request.method !== 'POST') throw new HttpError(404, '接口不存在')
   const parsed = credentialsSchema.safeParse(await readBody(request))
@@ -65,13 +68,13 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
     if (!account || !valid) throw new HttpError(401, '用户名或密码不正确')
     user = { id: account.id, username: account.username }
   }
-  statements.push(env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(hashToken(token), user.id, now + sessionDuration))
-  statements.push(env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now))
+  statements.push(env.DB.prepare(`INSERT INTO ${table} (token_hash, user_id, expires_at) VALUES (?, ?, ?)`).bind(hashToken(token), user.id, now + sessionDuration))
+  statements.push(env.DB.prepare(`DELETE FROM ${table} WHERE expires_at <= ?`).bind(now))
   statements.push(env.DB.prepare('DELETE FROM auth_rate_limits WHERE expires_at <= ?').bind(now))
   try { await env.DB.batch(statements) }
   catch (error) {
     if (action === 'register' && String(error).includes('UNIQUE')) throw new HttpError(409, '这个用户名已被注册')
     throw error
   }
-  return json({ user }, action === 'register' ? 201 : 200, { 'Set-Cookie': sessionCookie(request, token) })
+  return json(native ? { user, token } : { user }, action === 'register' ? 201 : 200, native ? {} : { 'Set-Cookie': sessionCookie(request, token) })
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import JournalPhoto from './JournalImage.vue'
 import { computed } from 'vue'
 import { Check, Pencil, Clock3, Images, Trash2 } from '@lucide/vue'
 import type { JournalEntry, JournalImage } from '../../../shared/journal'
@@ -33,7 +34,7 @@ function time(iso: string) { return new Intl.DateTimeFormat('zh-CN', { hour: '2-
           <JournalMarkdown v-if="entry.content" :content="entry.content" :id-prefix="`journal-content-${entry.id}`" />
           <div v-if="entry.images.length" class="grid gap-2" :class="[entry.images.length === 1 ? 'max-w-xs grid-cols-1' : entry.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3', entry.content ? 'mt-3' : '']">
             <button v-for="(image, index) in entry.images" :id="`journal-preview-${image.id}`" :key="image.id" type="button" :aria-label="`查看 ${entry.date} 的第 ${index + 1} 张图片`" aria-haspopup="dialog" aria-controls="journal-image-viewer" class="group relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:bg-slate-900" @click="emit('preview', image)">
-              <img :src="image.url" :alt="`${entry.date} 的${subjectLabel}进展照片 ${index + 1}`" loading="lazy" width="320" height="240" class="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transition-none" />
+              <JournalPhoto :src="image.url" :alt="`${entry.date} 的${subjectLabel}进展照片 ${index + 1}`" loading="lazy" width="320" height="240" class="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transition-none" />
               <Images class="absolute right-2 bottom-2 h-3.5 w-3.5 text-white/90 drop-shadow" />
             </button>
           </div>

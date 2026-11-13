@@ -22,6 +22,19 @@ async function waitForAssets<T>(ready: Promise<T>, signal: AbortSignal, message 
 async function waitForImages(sheet: HTMLElement, signal: AbortSignal) {
   await Promise.all(Array.from(sheet.querySelectorAll('img'), async image => {
     signal.throwIfAborted()
+    if (image.hasAttribute('data-image-loading')) {
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = () => { observer.disconnect(); clearTimeout(timer); signal.removeEventListener('abort', abort) }
+        const abort = () => { cleanup(); reject(signal.reason) }
+        const observer = new MutationObserver(() => {
+          if (!image.hasAttribute('data-image-loading')) { cleanup(); resolve() }
+        })
+        const timer = setTimeout(() => { cleanup(); reject(new Error('照片加载超时，请重新生成')) }, 20_000)
+        observer.observe(image, { attributes: true, attributeFilter: ['src', 'data-image-loading', 'data-image-error'] })
+        signal.addEventListener('abort', abort, { once: true })
+      })
+    }
+    if (image.hasAttribute('data-image-error')) throw new Error('部分照片未能加载，请检查网络后重新生成图片')
     try { await image.decode() }
     catch { throw new Error('部分照片未能加载，请检查网络后重新生成图片') }
     signal.throwIfAborted()
