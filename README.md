@@ -369,15 +369,17 @@ pnpm build:desktop
 | --- | --- | --- |
 | Web | `pnpm build:cloudflare`，随后按上文部署 | 已部署 Cloudflare，页面、资源与接口验收通过 |
 | macOS | `pnpm build:desktop --bundles app,dmg` | Apple Silicon 的 app/DMG 已本机构建并验证核心操作，最低 macOS 14.4 |
-| Windows | `pnpm build:desktop --bundles nsis` | 已配置 x64 CI，尚待对应环境验证；需要 MSVC 与 WebView2 |
-| Linux | `pnpm build:desktop --bundles appimage,deb` | 已配置 x64 CI，尚待对应环境验证；需要 WebKitGTK 4.1 与 Secret Service |
-| Android | 初始化后运行 `pnpm build:android --debug --target aarch64 --apk --ci` | 已配置 arm64 调试 APK 构建，尚待执行验证；最低 API 24 |
+| Windows | `pnpm build:desktop --bundles nsis` | x64 CI 安装器构建成功；需要 MSVC 与 WebView2，尚未进行本机运行验收 |
+| Linux | `pnpm build:desktop --bundles appimage,deb` | x64 CI 的 AppImage/deb 构建成功；需要 WebKitGTK 4.1 与 Secret Service，尚未进行本机运行验收 |
+| Android | 初始化后运行 `pnpm build:android --debug --target aarch64 --apk --ci` | arm64 调试 APK 的 CI 构建成功，尚未进行真机验收；最低 API 24 |
 | iOS | 初始化后运行 `pnpm build:ios --debug --target aarch64-sim --no-sign --archive-only --ci` | arm64 模拟器归档已本机构建，最低 iOS 17.4；真机分发需签名 |
 
 移动端首次运行前，分别执行 `pnpm tauri android init --ci` 或 `pnpm tauri ios init --ci`；Android 需 JDK/SDK/NDK，iOS 需 macOS 与完整 Xcode。生成工程、编译缓存、签名密钥和本机配置不提交仓库。完整要求见 [原生客户端指南](docs/native.md)。
 
 [原生客户端构建工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/native.yml) 在推送 `main`、`v*` / `native-v*` 标签、面向 `main` 的 PR 或手动触发时运行，先检查单元测试、Web 构建及本地 D1 的 Web/原生 API，再构建桌面、Android 和 iOS 模拟器产物。成功运行的 **Artifacts** 保留原生测试包 14 天，需要登录 GitHub 下载；具体平台是否构建成功，以工作流结果为准。
 
-当前产物用于测试：Windows/macOS 安装器未配置正式发行签名或公证，Android 使用调试签名，iOS 归档仅用于模拟器。工作流不会自动发布商店、创建公开 Release 或部署 Workers。桌面支持 PNG 剪贴板复制；Android/iOS 请保存 PNG 后分享。
+标签构建全部成功后，[原生安装包发布工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/publish-native.yml) 校验标签、提交、版本及构建来源，将 DMG、EXE、AppImage、DEB、APK、iOS 模拟器 ZIP 和校验和附加到同一 GitHub Release。请从 [最新 Release](https://github.com/shindouhiro/KeepDo/releases/latest) 的 **Assets** 直接下载安装包，无需登录 GitHub。下载失败或发布步骤失败时，可在发布工作流中指定原标签与成功构建运行 ID 补发，无需修改标签或重新编译。
+
+当前产物用于测试：Windows/macOS 安装器未配置正式发行签名或公证，Android 使用调试签名，iOS 归档仅用于模拟器。发布原生附件不会发布商店或部署 Workers。桌面支持 PNG 剪贴板复制；Android/iOS 请保存 PNG 后分享。
 
 原生验证命令为 `pnpm build:native:web`、`pnpm check:native`、`pnpm test:native` 和 `pnpm lint:native`。Web/原生 API 集成测试统一使用 `pnpm test:api`，仅对本地测试数据库执行。

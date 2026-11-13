@@ -96,7 +96,11 @@ pnpm build:ios --debug --target aarch64-sim --no-sign --archive-only --ci
 - Android arm64 调试 APK；
 - iOS arm64 模拟器归档。
 
-产物上传到该次 GitHub Actions 的 Artifacts。默认产物用于测试，工作流不会部署 Workers、发布商店或创建公开 Release。Windows/macOS 的正式发行签名、macOS 公证、Android 发布签名和 iOS 真机分发依赖各自凭据。当前版本通过重新安装新版升级，尚未启用桌面自动更新。
+产物先上传到该次 GitHub Actions 的 Artifacts。`v*` / `native-v*` 标签构建全部成功后，`publish-native.yml` 校验当前仓库、原生工作流、标签提交、应用版本及产物完整性，再将最终安装包和 `SHA256SUMS-native.txt` 附加到同名公开 Release；普通分支与 PR 构建仅提供 Artifacts。扩展与原生发布使用同一份发布说明，重复发布仅更新同名附件。
+
+历史标签漏传附件时，在「发布 KeepDo 原生安装包」工作流手动输入 `tag` 和该标签成功构建的 `run_id`，会复用原构建，无需重新编译或移动标签。必须在 Artifacts 过期前补发，不能使用其他分支、仓库或失败构建的产物。
+
+默认原生包用于测试，发布附件不会部署 Workers 或发布商店。Windows/macOS 的正式发行签名、macOS 公证、Android 发布签名和 iOS 真机分发依赖各自凭据。当前版本通过重新安装新版升级，尚未启用桌面自动更新。
 
 ## 验证
 

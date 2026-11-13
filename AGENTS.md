@@ -925,3 +925,4 @@ pnpm cf:whoami        # 查看当前账户
 - `KEEPDO_API_ORIGIN` 为 Rust 编译时来源；默认线上站点，发布构建必须为 HTTPS。详见 `docs/native.md`。
 - `pnpm build:native:web` 输出 `dist-native/`，`pnpm build:desktop` 打包当前桌面平台。移动端首次需运行 `pnpm tauri android init` / `pnpm tauri ios init`。
 - GitHub Actions 原生构建上传测试产物，不自动部署后端或发布商店。正式签名与分发必须另行配置凭据。
+- 标签原生构建成功后，由 `publish-native.yml` 将最终安装包和校验和附加至同名 Release；发布脚本仅从默认分支读取，必须校验原仓库、原生工作流、标签提交、版本与产物完整性。补发使用原标签和成功构建 ID，不移动标签。

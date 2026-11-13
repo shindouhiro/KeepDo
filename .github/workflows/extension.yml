@@ -77,6 +77,8 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
+      - name: 检出发布说明
+        uses: actions/checkout@v4
       - name: 下载已验证的扩展安装包
         uses: actions/download-artifact@v8
         with:
@@ -88,20 +90,14 @@ jobs:
 
       - name: 发布到 GitHub Releases
         run: |
-          cat > release-notes.md <<'EOF'
-          下载下方 Assets 中的 `dist-extension.zip` 即可安装 KeepDo Chrome 扩展。
-
-          1. 将 ZIP 解压到固定目录。
-          2. 打开 `chrome://extensions/`，启用「开发者模式」。
-          3. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的目录。
-
-          扩展需要联网，默认连接 KeepDo 在线站点，沿用线上账号与数据。
-          EOF
           if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" dist-extension.zip --clobber
           else
             gh release create "$RELEASE_TAG" dist-extension.zip \
               --verify-tag --latest \
-              --title "KeepDo Chrome 扩展 $RELEASE_TAG" \
-              --notes-file release-notes.md
+              --title "KeepDo $RELEASE_TAG" \
+              --notes-file docs/release-notes.md || {
+                gh release view "$RELEASE_TAG" > /dev/null
+                gh release upload "$RELEASE_TAG" dist-extension.zip --clobber
+              }
           fi
