@@ -180,13 +180,20 @@ pnpm build:extension
 
 构建输出为 `dist-extension/` 和 `dist-extension.zip`。压缩打包依赖系统 `zip` 命令；若压缩失败，仍可加载已生成的目录。该命令通过独立 Vite 配置构建扩展连接界面，不会把业务前端和 Worker 打进扩展；类型检查与主应用构建仍使用 `pnpm build`。
 
-也可以直接下载 GitHub Actions 生成的安装包，无需在本地安装依赖：
+推荐从仓库右侧的 **Releases** 下载已发布的安装包，无需登录 GitHub 或在本地安装依赖：
+
+1. 打开 [最新版本](https://github.com/shindouhiro/KeepDo/releases/latest)，在 **Assets** 中下载 [dist-extension.zip](https://github.com/shindouhiro/KeepDo/releases/latest/download/dist-extension.zip)。
+2. 将 ZIP 解压到固定目录，再按照下方步骤加载包含 `manifest.json` 的目录。
+
+开发版本也可以从 GitHub Actions 下载：
 
 1. 打开 [Build Chrome Extension 工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/extension.yml)，选择一次成功运行。
 2. 在该次运行的 **Artifacts** 区域下载 `dist-extension.zip`（需要登录 GitHub，产物保留 30 天）。
 3. 将 ZIP 解压到固定目录，再按照下方步骤加载包含 `manifest.json` 的目录。
 
 工作流在推送到 `main`、提交面向 `main` 的 Pull Request 时自动运行，也支持通过 **Run workflow** 手动触发。它会先运行单元测试，再构建并检查 ZIP 完整性；打包或上传产物失败会使工作流失败。安装包以原始 ZIP 上传，下载后只需解压一次。
+
+发布新版本时，先更新 `extension/manifest.json` 的 `version` 并提交，再推送对应的 `v<版本号>` 标签（例如 `v1.0.1`）。工作流会校验标签与扩展版本一致，构建通过后自动创建 GitHub Release 并附加 `dist-extension.zip`。Release 中的安装包不受 Actions 产物 30 天保留期限制；重新运行标签工作流会更新同版本的安装包。
 
 本地加载步骤：
 

@@ -3,6 +3,7 @@ name: Build Chrome Extension
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -36,6 +37,17 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
+      - name: 检查发布版本
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          pnpm exec node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+          const { version } = JSON.parse(readFileSync('extension/manifest.json', 'utf8'))
+          if (process.env.GITHUB_REF_NAME !== `v${version}`) {
+            throw new Error(`发布标签必须与扩展版本一致：v${version}`)
+          }
+          NODE
+
       - name: 运行单元测试
         run: pnpm test
 
@@ -52,3 +64,44 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: 下载已验证的扩展安装包
+        uses: actions/download-artifact@v8
+        with:
+          name: dist-extension.zip
+          skip-decompress: true
+
+      - name: 检查下载的安装包
+        run: unzip -t dist-extension.zip
+
+      - name: 发布到 GitHub Releases
+        run: |
+          cat > release-notes.md <<'EOF'
+          下载下方 Assets 中的 `dist-extension.zip` 即可安装 KeepDo Chrome 扩展。
+
+          1. 将 ZIP 解压到固定目录。
+          2. 打开 `chrome://extensions/`，启用「开发者模式」。
+          3. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的目录。
+
+          扩展需要联网，默认连接 KeepDo 在线站点，沿用线上账号与数据。
+          EOF
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist-extension.zip --clobber
+          else
+            gh release create "$RELEASE_TAG" dist-extension.zip \
+              --verify-tag --latest \
+              --title "KeepDo Chrome 扩展 $RELEASE_TAG" \
+              --notes-file release-notes.md
+          fi
