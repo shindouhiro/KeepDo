@@ -3,6 +3,7 @@ import type { BackupEntry, BackupManifest } from '../../shared/backup.ts'
 import { bytesToBase64, completeBackupSchema } from '../../shared/backup.ts'
 import { getJournalImageType } from '../../shared/journal.ts'
 import { api } from './api.ts'
+import { platformFetch } from './platform/index.ts'
 
 export async function exportCompleteBackup(data: AppData, onProgress?: (message: string) => void): Promise<string> {
   onProgress?.('正在读取全部图文记录…')
@@ -14,7 +15,7 @@ export async function exportCompleteBackup(data: AppData, onProgress?: (message:
     const images: BackupEntry['images'] = []
     for (const image of entry.images) {
       onProgress?.(`正在备份图片 ${completed + 1}/${count}…`)
-      const response = await fetch(image.url, { credentials: 'same-origin', signal: AbortSignal.timeout(30_000) })
+      const response = await platformFetch(image.url, { signal: AbortSignal.timeout(30_000) })
       if (!response.ok) throw new Error('图片读取失败，完整备份尚未生成，请重试')
       const bytes = new Uint8Array(await response.arrayBuffer())
       if (bytes.byteLength !== image.byteSize || getJournalImageType(bytes) !== image.mimeType) throw new Error('图片校验失败，完整备份尚未生成，请重试')

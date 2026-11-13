@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import JournalImage from './JournalImage.vue'
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import { ImagePlus, LoaderCircle, X, PenLine, Trash2 } from '@lucide/vue'
 import type { JournalEntry } from '../../../shared/journal'
@@ -114,11 +115,11 @@ onBeforeUnmount(() => { disposed = true; pending.value.forEach(image => URL.revo
       </div>
       <div v-if="count" class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="记录中的图片">
         <div v-for="image in existing" :key="image.id" class="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-          <img :src="image.url" alt="已保存的记录图片" class="h-full w-full object-cover" width="160" height="160" />
+          <JournalImage :src="image.url" alt="已保存的记录图片" class="h-full w-full object-cover" width="160" height="160" />
           <button :id="`journal-remove-existing-${image.id}`" type="button" aria-label="从记录中移除图片" class="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/65 text-white focus-visible:outline-2 focus-visible:outline-indigo-400" @click="existing = existing.filter(item => item.id !== image.id)"><X class="h-3 w-3" /></button>
         </div>
         <div v-for="image in pending" :key="image.id" class="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-          <img :src="image.url" alt="待上传的记录图片" class="h-full w-full object-cover" width="160" height="160" />
+          <JournalImage :src="image.url" alt="待上传的记录图片" class="h-full w-full object-cover" width="160" height="160" />
           <button :id="`journal-remove-pending-${image.id}`" type="button" aria-label="移除待上传图片" class="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-950/65 text-white focus-visible:outline-2 focus-visible:outline-indigo-400" @click="removePending(image.id)"><X class="h-3 w-3" /></button>
         </div>
       </div>

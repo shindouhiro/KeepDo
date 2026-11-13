@@ -1,0 +1,178 @@
+name: 构建 KeepDo 原生客户端
+
+on:
+  push:
+    branches: [main, codex/cross-platform-tauri]
+    tags: ['native-v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: 单元测试与 Web 构建
+        run: pnpm test && pnpm build:cloudflare
+      - name: 本地数据库迁移
+        run: pnpm db:migrate:local
+      - name: 验证 Web 与原生 API
+        shell: bash
+        run: |
+          pnpm dev:api > /tmp/keepdo-api.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          pnpm exec wait-on --timeout 60000 http-get://localhost:8787/api/health
+          pnpm test:api
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keepdo-web
+          path: dist/
+          if-no-files-found: error
+
+  desktop:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+            name: linux-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            name: windows-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+            name: macos-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+            name: macos-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: 安装 Linux 构建依赖
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev libdbus-1-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - name: Rust 安全边界测试
+        run: pnpm test:native
+      - name: 打包桌面客户端
+        run: pnpm build:desktop --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --ci
+        env:
+          NO_STRIP: 'true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keepdo-${{ matrix.name }}-unsigned
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    needs: verify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: 安装 Android SDK 与 NDK
+        run: |
+          sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: 生成 Android 工程
+        run: pnpm tauri android init --ci --skip-targets-install
+      - name: 构建可安装的调试 APK
+        run: pnpm build:android --debug --target aarch64 --apk --ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keepdo-android-arm64-debug
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    needs: verify
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: 配置 Xcode 工程生成器
+        run: command -v xcodegen || brew install xcodegen
+      - run: pnpm install --frozen-lockfile
+      - name: 生成 iOS 工程
+        run: pnpm tauri ios init --ci --skip-targets-install
+      - name: 构建无需签名的模拟器归档
+        run: pnpm build:ios --debug --target aarch64-sim --no-sign --archive-only --ci
+      - name: 收集模拟器归档
+        run: ditto -c -k --keepParent src-tauri/gen/apple/build keepdo-ios-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keepdo-ios-simulator-unsigned
+          path: keepdo-ios-simulator.zip
+          if-no-files-found: error
+          retention-days: 14

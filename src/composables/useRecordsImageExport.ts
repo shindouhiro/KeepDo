@@ -3,6 +3,7 @@ import type { JournalEntry, JournalPage } from '../../shared/journal'
 import type { JournalFeedFilter } from '../../shared/journal-feed'
 import { collectJournalPages, journalFeedFilterSchema, journalFeedQuery } from '../../shared/journal-feed'
 import { api } from '../lib/api'
+import { copyImage as copyPlatformImage, saveFile } from '../lib/platform'
 
 export function useRecordsImageExport(getViewport: () => HTMLElement | null, getSheet: () => HTMLElement | null) {
   const opened = shallowRef(false)
@@ -10,7 +11,10 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
   const progress = shallowRef('')
   const error = shallowRef('')
   const entries = shallowRef<JournalEntry[]>([])
-  const image = shallowRef<{ url: string; svgUrl: string; filename: string; svgFilename: string; png: Blob; width: number; height: number } | null>(null)
+  const image = shallowRef<{ url: string; svgUrl: string; filename: string; svgFilename: string; png: Blob; svg: Blob; width: number; height: number } | null>(null)
+  const saving = shallowRef(false)
+  const saveMessage = shallowRef('')
+  const saveFailed = shallowRef(false)
   const copying = shallowRef(false)
   const copyMessage = shallowRef('')
   const copyFailed = shallowRef(false)
@@ -25,6 +29,8 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
     copying.value = false
     copyMessage.value = ''
     copyFailed.value = false
+    saveMessage.value = ''
+    saveFailed.value = false
   }
 
   async function copyImage() {
@@ -34,9 +40,8 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
     copyMessage.value = ''
     copyFailed.value = false
     try {
-      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('当前浏览器不支持复制图片，请下载 PNG 图片后使用')
       // 直接使用已生成的 PNG，在点击事件中发起写入，保留浏览器所需的用户操作授权。
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': current.png })])
+      await copyPlatformImage(current.png)
       if (image.value === current) copyMessage.value = '图片已复制，可直接粘贴到聊天或文档中'
     } catch (cause) {
       if (image.value === current) {
@@ -45,6 +50,23 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
           ? cause.message : '未能复制图片，请允许剪贴板访问后重试，或下载 PNG 图片'
       }
     } finally { if (image.value === current) copying.value = false }
+  }
+
+  async function saveImage(format: 'png' | 'svg') {
+    const current = image.value
+    if (!current || saving.value) return
+    saving.value = true
+    saveMessage.value = ''
+    saveFailed.value = false
+    try {
+      const saved = await saveFile(format === 'svg' ? current.svg : current.png, format === 'svg' ? current.svgFilename : current.filename)
+      if (image.value === current) saveMessage.value = saved ? '完整记录长图已保存' : '已取消保存图片'
+    } catch (cause) {
+      if (image.value === current) {
+        saveFailed.value = true
+        saveMessage.value = cause instanceof Error ? cause.message : '保存失败，请检查文件权限后重试'
+      }
+    } finally { saving.value = false }
   }
 
   function close() {
@@ -87,7 +109,7 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
       image.value = {
         url: URL.createObjectURL(result.png), svgUrl: URL.createObjectURL(result.svg),
         filename: `KeepDo-记录-${date}.png`, svgFilename: `KeepDo-记录-${date}.svg`,
-        png: result.png, width: result.width, height: result.height,
+        png: result.png, svg: result.svg, width: result.width, height: result.height,
       }
       progress.value = `共 ${all.length} 条记录，已完整合并为一张长图`
     } catch (cause) {
@@ -104,5 +126,5 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
   }
 
   onBeforeUnmount(close)
-  return { opened, busy, progress, error, entries, image, copying, copyMessage, copyFailed, generate, copyImage, close }
+  return { opened, busy, progress, error, entries, image, copying, copyMessage, copyFailed, saving, saveMessage, saveFailed, generate, copyImage, saveImage, close }
 }

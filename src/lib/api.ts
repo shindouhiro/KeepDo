@@ -7,14 +7,14 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const headers = new Headers(options.headers)
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   try {
-    response = await fetch(path, {
+    response = await platformFetch(path, {
       ...options,
       credentials: 'same-origin',
       headers,
       signal: options.signal ?? AbortSignal.timeout(20_000),
     })
-  } catch {
-    throw new ApiError(0, '网络连接失败，请检查网络后重试，未保存的内容仍保留在当前页面')
+  } catch (cause) {
+    throw new ApiError(0, cause instanceof Error && cause.name === 'Error' ? cause.message : '网络连接失败，请检查网络后重试，未保存的内容仍保留在当前页面')
   }
   let result: T & { error?: string }
   try { result = await response.json() }
@@ -22,3 +22,4 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   if (!response.ok) throw new ApiError(response.status, result.error ?? '请求失败，请稍后重试')
   return result
 }
+import { platformFetch } from './platform/index.ts'

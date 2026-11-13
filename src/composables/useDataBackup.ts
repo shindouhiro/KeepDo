@@ -6,6 +6,7 @@ import { BACKUP_BODY_LIMIT, parseBackup } from '../../shared/backup'
 import type { BackupManifest, CompleteBackup } from '../../shared/backup'
 import { getTodayString } from '../utils/date'
 import { useConfirmDrawer } from './useConfirmDrawer'
+import { saveFile } from '../lib/platform'
 
 export function useDataBackup() {
   const store = useKeepDoStore()
@@ -18,14 +19,7 @@ export function useDataBackup() {
   const showLocalExport = shallowRef(false)
 
   function download(json: string, partial = false) {
-    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `keepdo-${partial ? 'basic-data' : 'backup'}-${getTodayString()}.json`
-    document.body.append(anchor)
-    anchor.click()
-    anchor.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return saveFile(new Blob([json], { type: 'application/json' }), `keepdo-${partial ? 'basic-data' : 'backup'}-${getTodayString()}.json`)
   }
   function fail(cause: unknown) {
     statusMessage.value = cause instanceof Error ? cause.message : '操作失败，请重试'
@@ -37,17 +31,21 @@ export function useDataBackup() {
     isError.value = showLocalExport.value = false
     try {
       const json = await store.exportDataAsJSON(message => { statusMessage.value = message })
-      download(json)
-      statusMessage.value = '完整备份已下载，包含基础数据、全部图文日记和图片。'
+      statusMessage.value = await download(json) ? '完整备份已保存，包含基础数据、全部图文日记和图片。' : '已取消保存备份。'
     } catch (cause) {
       fail(cause)
       showLocalExport.value = true
     } finally { busy.value = exporting.value = false }
   }
-  function handleLocalExport() {
-    download(store.exportLocalDataAsJSON(), true)
-    statusMessage.value = '已导出页面基础数据（含未保存修改），不包含图文日记和图片。完整备份需要联网后重新导出。'
-    isError.value = false
+  async function handleLocalExport() {
+    if (busy.value) return
+    busy.value = true
+    try {
+      const saved = await download(store.exportLocalDataAsJSON(), true)
+      statusMessage.value = saved ? '已导出页面基础数据（含未保存修改），不包含图文日记和图片。完整备份需要联网后重新导出。' : '已取消保存备份。'
+      isError.value = false
+    } catch (cause) { fail(cause) }
+    finally { busy.value = false }
   }
   async function restoreBackup(backup: CompleteBackup): Promise<boolean> {
     await store.flushSync()

@@ -5,16 +5,24 @@ import { saveDataSchema } from '../shared/schema.ts'
 import { handleJournal } from './journal.ts'
 import { handleBackup } from './backup.ts'
 import { handleGitHubBackup } from './github-backup.ts'
+import { assertNativeRequest } from './native.ts'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const path = new URL(request.url).pathname
+    const url = new URL(request.url)
+    let path = url.pathname
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request)
     try {
-      if (!['GET', 'HEAD'].includes(request.method)) assertSameOrigin(request)
-      if (path.startsWith('/api/auth/')) return await handleAuth(request, env, path)
+      const native = path.startsWith('/api/native/')
+      if (native) {
+        assertNativeRequest(request)
+        path = path.replace('/api/native/', '/api/')
+        url.pathname = path
+        request = new Request(url, request)
+      } else if (!['GET', 'HEAD'].includes(request.method)) assertSameOrigin(request)
+      if (path.startsWith('/api/auth/')) return await handleAuth(request, env, path, native)
       if (path === '/api/health' && request.method === 'GET') return json({ status: 'ok' })
-      const user = await getUser(request, env)
+      const user = await getUser(request, env, native)
       if (!user) throw new HttpError(401, '请先登录')
       if (path === '/api/github-backup' || path.startsWith('/api/github-backup/')) return await handleGitHubBackup(request, env, user)
       if (path === '/api/backup') return await handleBackup(request, env, user)

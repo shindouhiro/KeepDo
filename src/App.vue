@@ -5,6 +5,7 @@ import AuthView from './components/auth/AuthView.vue'
 import KeepDoWorkspace from './components/KeepDoWorkspace.vue'
 import ConfirmDrawer from './components/ConfirmDrawer.vue'
 import { provideConfirmDrawer } from './composables/useConfirmDrawer'
+import NativeRuntime from './components/NativeRuntime.vue'
 
 const auth = useAuthStore()
 const confirmation = provideConfirmDrawer()
@@ -22,4 +23,5 @@ onMounted(() => { void auth.initialize() })
   <KeepDoWorkspace v-else-if="auth.user" :key="auth.user.id" />
   <AuthView v-else />
   <ConfirmDrawer :pending="confirmation.pending.value" @settle="confirmation.settle" />
+  <NativeRuntime />
 </template>
