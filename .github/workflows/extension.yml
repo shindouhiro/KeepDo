@@ -1,0 +1,54 @@
+name: Build Chrome Extension
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 运行单元测试
+        run: pnpm test
+
+      - name: 构建 Chrome 扩展安装包
+        run: pnpm build:extension
+
+      - name: 检查安装包完整性
+        run: unzip -t dist-extension.zip
+
+      - name: 上传 Chrome 扩展安装包
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist-extension.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30

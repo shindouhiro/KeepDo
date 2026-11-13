@@ -180,10 +180,18 @@ pnpm build:extension
 
 构建输出为 `dist-extension/` 和 `dist-extension.zip`。压缩打包依赖系统 `zip` 命令；若压缩失败，仍可加载已生成的目录。该命令通过独立 Vite 配置构建扩展连接界面，不会把业务前端和 Worker 打进扩展；类型检查与主应用构建仍使用 `pnpm build`。
 
+也可以直接下载 GitHub Actions 生成的安装包，无需在本地安装依赖：
+
+1. 打开 [Build Chrome Extension 工作流](https://github.com/shindouhiro/KeepDo/actions/workflows/extension.yml)，选择一次成功运行。
+2. 在该次运行的 **Artifacts** 区域下载 `dist-extension.zip`（需要登录 GitHub，产物保留 30 天）。
+3. 将 ZIP 解压到固定目录，再按照下方步骤加载包含 `manifest.json` 的目录。
+
+工作流在推送到 `main`、提交面向 `main` 的 Pull Request 时自动运行，也支持通过 **Run workflow** 手动触发。它会先运行单元测试，再构建并检查 ZIP 完整性；打包或上传产物失败会使工作流失败。安装包以原始 ZIP 上传，下载后只需解压一次。
+
 本地加载步骤：
 
 1. 在 Chrome 地址栏输入 `chrome://extensions/`，打开「开发者模式」。
-2. 点击「加载已解压的扩展程序」，选择仓库中的 `dist-extension/` 目录。
+2. 点击「加载已解压的扩展程序」，选择仓库中的 `dist-extension/` 目录，或上方安装包解压后包含 `manifest.json` 的目录。
 3. 打开新标签页，或点击扩展图标检查入口。修改源码并重新构建后，在扩展管理页点击重新加载。
 
 升级旧版时，先重新执行 `pnpm build:extension`，再到扩展管理页重新加载 KeepDo，并关闭旧的扩展页面后重新打开。安装扩展不会在本地创建另一套账号或数据库，默认使用线上账号与数据。
