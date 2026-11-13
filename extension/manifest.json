@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "KeepDo - 每日行动与目标沉淀",
+  "version": "1.0.1",
+  "homepage_url": "https://keepdo.shindouhiro.workers.dev/",
+  "description": "极简优雅的目标与日常打卡管理工具：设立长期目标、规划日常习惯、聚焦今日待办、沉淀成长日记。",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "打开 KeepDo",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "chrome_url_overrides": {
+    "newtab": "index.html"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "permissions": [
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://keepdo.shindouhiro.workers.dev/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self'; frame-src https://keepdo.shindouhiro.workers.dev; connect-src https://keepdo.shindouhiro.workers.dev; base-uri 'none';"
+  }
+}

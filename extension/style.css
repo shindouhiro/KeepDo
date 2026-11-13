@@ -1,0 +1,10 @@
+@import "tailwindcss" source(".");
+
+@theme {
+  --font-sans: 'Inter', 'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@layer base {
+  :root { color-scheme: light dark; }
+  [hidden] { display: none !important; }
+}
