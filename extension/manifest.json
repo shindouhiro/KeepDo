@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KeepDo - 每日行动与目标沉淀",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "homepage_url": "https://keepdo.shindouhiro.workers.dev/",
   "description": "极简优雅的目标与日常打卡管理工具：设立长期目标、规划日常习惯、聚焦今日待办、沉淀成长日记。",
   "icons": {

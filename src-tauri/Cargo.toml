@@ -1,6 +1,6 @@
 [package]
 name = "keepdo"
-version = "1.0.1"
+version = "1.0.2"
 description = "KeepDo 跨平台个人行动管理工具"
 authors = ["KeepDo"]
 edition = "2021"
