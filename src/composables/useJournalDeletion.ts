@@ -1,5 +1,6 @@
 import { shallowRef } from 'vue'
 import type { JournalEntry } from '../../shared/journal'
+import { journalEntryPath } from '../../shared/journal'
 import { api } from '../lib/api'
 import { useJournalStore } from '../stores/journal'
 
@@ -25,12 +26,11 @@ export function useJournalDeletion(onDeleted: (entry: JournalEntry) => void) {
     deleting.value = true
     error.value = ''
     try {
-      const collection = entry.subjectType === 'goal' ? 'goals' : 'habits'
-      await api(`/api/${collection}/${encodeURIComponent(entry.subjectId)}/journal/${entry.id}`, {
+      await api(journalEntryPath(entry.subjectType, entry.subjectId, entry.id), {
         method: 'DELETE', body: JSON.stringify({ version: entry.version }),
       })
       // 从服务端重新计算摘要，避免删掉同日其他记录的日期标记。
-      await index.refresh()
+      if (entry.subjectType !== 'note') await index.refresh()
       pending.value = null
       deleting.value = false
       onDeleted(entry)

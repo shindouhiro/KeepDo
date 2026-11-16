@@ -6,12 +6,21 @@ import { handleJournal } from './journal.ts'
 import { handleBackup } from './backup.ts'
 import { handleGitHubBackup } from './github-backup.ts'
 import { assertNativeRequest } from './native.ts'
+import { handleJournalShares, handlePublicJournalShare } from './journal-share.ts'
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     let path = url.pathname
-    if (!path.startsWith('/api/')) return env.ASSETS.fetch(request)
+    if (!path.startsWith('/api/')) {
+      const response = await env.ASSETS.fetch(request)
+      if (!path.startsWith('/share/')) return response
+      const headers = new Headers(response.headers)
+      headers.set('Referrer-Policy', 'no-referrer')
+      headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+      headers.set('Cache-Control', 'no-store')
+      return new Response(response.body, { status: response.status, headers })
+    }
     try {
       const native = path.startsWith('/api/native/')
       if (native) {
@@ -22,8 +31,10 @@ export default {
       } else if (!['GET', 'HEAD'].includes(request.method)) assertSameOrigin(request)
       if (path.startsWith('/api/auth/')) return await handleAuth(request, env, path, native)
       if (path === '/api/health' && request.method === 'GET') return json({ status: 'ok' })
+      if (path.startsWith('/api/public/journal-shares/')) return await handlePublicJournalShare(request, env, path)
       const user = await getUser(request, env, native)
       if (!user) throw new HttpError(401, '请先登录')
+      if (path === '/api/journal-shares' || path.startsWith('/api/journal-shares/')) return await handleJournalShares(request, env, user, path)
       if (path === '/api/github-backup' || path.startsWith('/api/github-backup/')) return await handleGitHubBackup(request, env, user)
       if (path === '/api/backup') return await handleBackup(request, env, user)
       const journal = await handleJournal(request, env, user, path)

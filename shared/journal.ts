@@ -4,6 +4,7 @@ export const JOURNAL_IMAGE_LIMIT = 400_000
 export const JOURNAL_IMAGE_COUNT = 6
 export const JOURNAL_BODY_LIMIT = 2_500_000
 export const JOURNAL_ACCOUNT_IMAGE_LIMIT = 50_000_000
+export const NOTE_SUBJECT_ID = 'standalone'
 export const journalInputSchema = z.object({
   date: z.iso.date(),
   content: z.string().trim().max(5000),
@@ -13,8 +14,20 @@ export const journalInputSchema = z.object({
 })
 export const journalDeleteSchema = z.object({ version: z.number().int().positive() })
 export interface JournalImage { id: string; url: string }
-export type JournalSubjectType = 'goal' | 'habit'
+export type JournalSubjectType = 'goal' | 'habit' | 'note'
 export type JournalFilter = 'all' | JournalSubjectType
+export function journalSubjectLabel(type: JournalSubjectType): string {
+  return type === 'goal' ? '目标' : type === 'habit' ? '习惯' : '随记'
+}
+
+export function journalEntryPath(type: JournalSubjectType, subjectId: string, entryId: string): string {
+  if (type === 'note') return `/api/notes/${encodeURIComponent(entryId)}`
+  return `/api/${type === 'goal' ? 'goals' : 'habits'}/${encodeURIComponent(subjectId)}/journal/${encodeURIComponent(entryId)}`
+}
+
+export function convertHabitToNotesPath(habitId: string): string {
+  return `/api/habits/${encodeURIComponent(habitId)}/convert-to-notes`
+}
 export interface JournalEntry {
   id: string
   subjectType: JournalSubjectType

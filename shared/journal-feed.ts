@@ -2,11 +2,11 @@ import { z } from 'zod'
 import type { JournalEntry, JournalPage } from './journal.ts'
 
 export const journalFeedFilterSchema = z.object({
-  type: z.enum(['all', 'goal', 'habit']).default('all'),
+  type: z.enum(['all', 'goal', 'habit', 'note']).default('all'),
   subjectId: z.string().max(200).default(''),
   from: z.union([z.literal(''), z.iso.date()]).default(''),
   to: z.union([z.literal(''), z.iso.date()]).default(''),
-}).refine(value => !value.subjectId || value.type !== 'all', '请先选择目标或习惯类型')
+}).refine(value => !value.subjectId || value.type === 'goal' || value.type === 'habit', '仅目标和习惯支持按主体筛选')
   .refine(value => !value.from || !value.to || value.from <= value.to, '开始日期不能晚于结束日期')
 
 export type JournalFeedFilter = z.infer<typeof journalFeedFilterSchema>

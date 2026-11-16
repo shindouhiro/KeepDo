@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { Env, User } from './types.ts'
 import type { JournalEntry, JournalImage, JournalSubjectType } from '../shared/journal.ts'
-import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_BODY_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, getJournalImageType, journalDeleteSchema, journalInputSchema } from '../shared/journal.ts'
+import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_BODY_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, NOTE_SUBJECT_ID, getJournalImageType, journalDeleteSchema, journalInputSchema, journalSubjectLabel } from '../shared/journal.ts'
 import { HttpError, json, readBody, readLimitedBytes } from './http.ts'
 import { journalFeedFilterSchema } from '../shared/journal-feed.ts'
 
@@ -18,24 +18,24 @@ async function entriesWithImages(env: Env, userId: string, rows: EntryRow[]): Pr
     .bind(userId, ...rows.map(row => row.id)).all<ImageRow>()
   return rows.map(row => ({
     id: row.id, subjectType: row.subject_type, subjectId: row.goal_id,
-    ...(row.subject_type === 'goal' ? { goalId: row.goal_id } : { habitId: row.goal_id }),
+    ...(row.subject_type === 'goal' ? { goalId: row.goal_id } : row.subject_type === 'habit' ? { habitId: row.goal_id } : {}),
     date: row.date, content: row.content,
     createdAt: row.created_at, updatedAt: row.updated_at, version: row.version,
     images: images.results.filter(image => image.entry_id === row.id).map(image => ({ id: image.id, url: `/api/journal/images/${image.id}` } satisfies JournalImage)),
   }))
 }
 
-async function requireSubject(env: Env, userId: string, subjectType: JournalSubjectType, subjectId: string) {
+async function requireSubject(env: Env, userId: string, subjectType: Exclude<JournalSubjectType, 'note'>, subjectId: string) {
   const account = await env.DB.prepare('SELECT data FROM user_data WHERE user_id = ?').bind(userId).first<{ data: string }>()
   const key = subjectType === 'goal' ? 'goals' : 'habits'
   const subject = account && (JSON.parse(account.data)[key] as Array<{ id: string; createdAt: string }>).find(item => item.id === subjectId)
-  if (!subject) throw new HttpError(404, `${subjectType === 'goal' ? '目标' : '习惯'}不存在，请刷新后重试`)
+  if (!subject) throw new HttpError(404, `${journalSubjectLabel(subjectType)}不存在，请刷新后重试`)
   return subject
 }
 
 async function saveEntry(request: Request, env: Env, user: User, subjectType: JournalSubjectType, subjectId: string, entryId: string) {
   if (!uuid.safeParse(entryId).success) throw new HttpError(400, '记录标识不正确')
-  const subject = await requireSubject(env, user.id, subjectType, subjectId)
+  const subject = subjectType === 'note' ? null : await requireSubject(env, user.id, subjectType, subjectId)
   const contentType = request.headers.get('Content-Type') || ''
   if (!contentType.startsWith('multipart/form-data;')) throw new HttpError(415, '请使用图文上传表单')
   const bytes = await readLimitedBytes(request, JOURNAL_BODY_LIMIT)
@@ -45,7 +45,7 @@ async function saveEntry(request: Request, env: Env, user: User, subjectType: Jo
   let input
   try { input = journalInputSchema.parse(JSON.parse(String(form.get('entry')))) }
   catch { throw new HttpError(400, '记录格式不正确，文字最多 5000 字，每条最多 6 张图片') }
-  if (input.date < subject.createdAt) throw new HttpError(400, `记录日期不能早于${subjectType === 'goal' ? '目标' : '习惯'}创建日期`)
+  if (subject && input.date < subject.createdAt) throw new HttpError(400, `记录日期不能早于${journalSubjectLabel(subjectType)}创建日期`)
   const files = form.getAll('images')
   if (input.keepImageIds.length + files.length > JOURNAL_IMAGE_COUNT) throw new HttpError(400, '每条记录最多 6 张图片')
   if (!input.content && !files.length && !input.keepImageIds.length) throw new HttpError(400, '请填写记录或添加图片')
@@ -107,6 +107,52 @@ async function deleteEntry(request: Request, env: Env, user: User, subjectType: 
   return json({ success: true })
 }
 
+async function convertHabitToNotes(request: Request, env: Env, user: User, habitId: string) {
+  let body: { title?: string; description?: string; date?: string } = {}
+  try {
+    const raw = await readBody(request)
+    if (raw && typeof raw === 'object') body = raw as { title?: string; description?: string; date?: string }
+  } catch {}
+
+  const account = await env.DB.prepare('SELECT data FROM user_data WHERE user_id = ?').bind(user.id).first<{ data: string }>()
+  let habit: { id: string; title: string; description?: string; createdAt?: string } | undefined
+  if (account) {
+    try {
+      const data = JSON.parse(account.data) as { habits?: Array<{ id: string; title: string; description?: string; createdAt?: string }> }
+      habit = data.habits?.find(h => h.id === habitId)
+    } catch {}
+  }
+
+  const title = (body.title || habit?.title || '').trim() || '未命名习惯'
+  const description = (body.description ?? habit?.description ?? '').trim()
+  const date = (/^\d{4}-\d{2}-\d{2}$/.test(body.date || '') ? body.date! : (habit?.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10)))
+
+  const existingEntries = await env.DB.prepare(
+    'SELECT * FROM goal_journal_entries WHERE user_id = ? AND subject_type = ? AND goal_id = ? ORDER BY date ASC, created_at ASC'
+  ).bind(user.id, 'habit', habitId).all<EntryRow>()
+
+  const now = new Date().toISOString()
+  if (existingEntries.results.length > 0) {
+    const statements = existingEntries.results.map(row => {
+      const hasTitle = row.content.includes(title)
+      const content = hasTitle ? row.content : (row.content ? `### ${title}\n\n${row.content}` : `### ${title}`).trim()
+      return env.DB.prepare(
+        "UPDATE goal_journal_entries SET subject_type = 'note', goal_id = ?, content = ?, version = version + 1, updated_at = ? WHERE id = ? AND user_id = ?"
+      ).bind(NOTE_SUBJECT_ID, content, now, row.id, user.id)
+    })
+    await env.DB.batch(statements)
+    return json({ success: true, count: existingEntries.results.length })
+  } else {
+    const noteId = crypto.randomUUID()
+    const content = (description ? `### ${title}\n\n${description}` : `### ${title}`).slice(0, 5000)
+    const writeToken = crypto.randomUUID()
+    await env.DB.prepare(
+      "INSERT INTO goal_journal_entries (id, user_id, goal_id, subject_type, date, content, created_at, updated_at, version, mutation_id, write_token) SELECT ?, ?, ?, 'note', ?, ?, ?, ?, 1, ?, ? WHERE (SELECT COUNT(*) FROM goal_journal_entries WHERE user_id = ?) < 5000"
+    ).bind(noteId, user.id, NOTE_SUBJECT_ID, date, content, now, now, crypto.randomUUID(), writeToken, user.id).run()
+    return json({ success: true, count: 1 })
+  }
+}
+
 async function listEntries(env: Env, user: User, url: URL, subject?: { type: JournalSubjectType; id: string }) {
   const conditions = ['user_id = ?']
   const values: string[] = [user.id]
@@ -142,7 +188,7 @@ export async function handleJournal(request: Request, env: Env, user: User, path
     return listEntries(env, user, url)
   }
   if (path === '/api/journal/summary' && request.method === 'GET') {
-    const dates = await env.DB.prepare('SELECT DISTINCT subject_type, goal_id, date FROM goal_journal_entries WHERE user_id = ? ORDER BY date DESC').bind(user.id).all<{ subject_type: JournalSubjectType; goal_id: string; date: string }>()
+    const dates = await env.DB.prepare("SELECT DISTINCT subject_type, goal_id, date FROM goal_journal_entries WHERE user_id = ? AND subject_type IN ('goal', 'habit') ORDER BY date DESC").bind(user.id).all<{ subject_type: 'goal' | 'habit'; goal_id: string; date: string }>()
     const result: Record<string, string[]> = Object.create(null)
     const habitDates: Record<string, string[]> = Object.create(null)
     for (const row of dates.results) ((row.subject_type === 'goal' ? result : habitDates)[row.goal_id] ||= []).push(row.date)
@@ -155,6 +201,20 @@ export async function handleJournal(request: Request, env: Env, user: User, path
     if (!image) throw new HttpError(404, '图片不存在')
     const data = Array.isArray(image.data) ? new Uint8Array(image.data) : new Uint8Array(image.data)
     return new Response(data, { headers: { 'Content-Type': image.mime_type, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox", 'Cross-Origin-Resource-Policy': 'same-origin' } })
+  }
+  const noteMatch = path.match(/^\/api\/notes\/([^/]+)$/)
+  if (noteMatch) {
+    if (request.method === 'PUT') return saveEntry(request, env, user, 'note', NOTE_SUBJECT_ID, noteMatch[1]!)
+    if (request.method === 'DELETE') return deleteEntry(request, env, user, 'note', NOTE_SUBJECT_ID, noteMatch[1]!)
+    throw new HttpError(405, '不支持此请求方法')
+  }
+  const convertMatch = path.match(/^\/api\/habits\/([^/]+)\/convert-to-notes$/)
+  if (convertMatch) {
+    if (request.method !== 'POST') throw new HttpError(405, '不支持此请求方法')
+    let habitId: string
+    try { habitId = decodeURIComponent(convertMatch[1]!) }
+    catch { throw new HttpError(400, '习惯标识不正确') }
+    return convertHabitToNotes(request, env, user, habitId)
   }
   const match = path.match(/^\/api\/(goals|habits)\/([^/]+)\/journal(?:\/([^/]+))?$/)
   if (!match) return null

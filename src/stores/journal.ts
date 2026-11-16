@@ -22,6 +22,7 @@ export const useJournalStore = defineStore('journal', () => {
     }
   }
   function markDate(subjectId: string, date: string, type: JournalSubjectType) {
+    if (type === 'note') return
     // 让保存前发出的摘要请求失效，防止旧响应覆盖刚保存的日期标记。
     generation++
     const target = type === 'goal' ? dates : habitDates

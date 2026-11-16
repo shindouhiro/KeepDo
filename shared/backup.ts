@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { appDataSchema } from './schema.ts'
-import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, getJournalImageType } from './journal.ts'
+import { JOURNAL_ACCOUNT_IMAGE_LIMIT, JOURNAL_IMAGE_COUNT, JOURNAL_IMAGE_LIMIT, NOTE_SUBJECT_ID, getJournalImageType } from './journal.ts'
 import type { JournalEntry } from './journal.ts'
 
 export const BACKUP_BODY_LIMIT = 90_000_000
@@ -12,11 +12,12 @@ const imageSchema = z.object({
     .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/),
 })
 const entrySchema = z.object({
-  id: z.uuid(), subjectType: z.enum(['goal', 'habit']), subjectId: z.string().min(1).max(100),
+  id: z.uuid(), subjectType: z.enum(['goal', 'habit', 'note']), subjectId: z.string().min(1).max(100),
   date: z.iso.date(), content: z.string().max(5000),
   createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(), version: z.number().int().positive(),
   images: z.array(imageSchema).max(JOURNAL_IMAGE_COUNT),
 }).refine(entry => Boolean(entry.content.trim() || entry.images.length), '日记不能为空')
+  .refine(entry => entry.subjectType !== 'note' || entry.subjectId === NOTE_SUBJECT_ID, '随记主体标识不正确')
 
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = ''

@@ -7,7 +7,7 @@ export function json(value: unknown, status = 200, extra: HeadersInit = {}): Res
   headers.set('Content-Type', 'application/json; charset=utf-8')
   headers.set('Cache-Control', 'no-store')
   headers.set('X-Content-Type-Options', 'nosniff')
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  if (!headers.has('Referrer-Policy')) headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   return new Response(JSON.stringify(value), { status, headers })
 }
 export async function readLimitedBytes(request: Pick<Request, 'body'>, limit: number): Promise<Uint8Array<ArrayBuffer>> {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, useTemplateRef } from 'vue'
 import { ChevronDown, Copy, Download, ImageDown, LoaderCircle, X } from '@lucide/vue'
+import type { JournalEntry } from '../../../shared/journal'
 import type { JournalFeedFilter } from '../../../shared/journal-feed'
 import { useRecordsImageExport } from '../../composables/useRecordsImageExport'
 import { useNativeDialog } from '../../composables/useNativeDialog'
@@ -15,6 +16,7 @@ const props = defineProps<{
 }>()
 const viewport = useTemplateRef<HTMLElement>('viewport')
 const sheet = useTemplateRef<HTMLElement>('sheet')
+const singleEntry = shallowRef<JournalEntry | null>(null)
 const snapshot = shallowRef({ filter: props.filter, summary: props.summary, titles: props.titles })
 const format = shallowRef<'svg' | 'png'>('svg')
 const exporter = useRecordsImageExport(() => viewport.value, () => sheet.value)
@@ -22,21 +24,60 @@ const isOpen = computed(() => exporter.opened.value)
 const { handleClose, handleBackdrop } = useNativeDialog('exportDialog', () => isOpen.value, exporter.close)
 
 function generate() {
+  singleEntry.value = null
   snapshot.value = { filter: { ...props.filter }, summary: props.summary, titles: new Map(props.titles) }
   void exporter.generate(snapshot.value.filter)
 }
+
+function exportEntry(entry: JournalEntry, summary: string) {
+  singleEntry.value = entry
+  snapshot.value = { filter: { ...props.filter }, summary, titles: new Map(props.titles) }
+  void exporter.generateSingle(entry)
+}
+
+function retry() {
+  if (singleEntry.value) void exporter.generateSingle(singleEntry.value)
+  else void exporter.generate(snapshot.value.filter)
+}
+
+defineExpose({
+  generate,
+  exportEntry,
+  busy: exporter.busy,
+})
 </script>
 
 <template>
-  <button id="records-export-image" type="button" :disabled="disabled || exporter.busy.value" aria-haspopup="dialog" aria-controls="records-export-dialog" class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-40 motion-reduce:transition-none" @click="generate"><ImageDown class="h-4 w-4" />保存为图片</button>
+  <div class="relative group inline-flex">
+    <button
+      id="records-export-image"
+      type="button"
+      :disabled="disabled || exporter.busy.value"
+      aria-haspopup="dialog"
+      aria-controls="records-export-dialog"
+      aria-label="保存为照片"
+      title="保存为照片"
+      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed motion-reduce:transition-none dark:border-slate-700 dark:bg-[#121824] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+      @click="generate"
+    >
+      <LoaderCircle v-if="exporter.busy.value" class="h-4 w-4 animate-spin text-indigo-500 motion-reduce:animate-none" />
+      <ImageDown v-else class="h-4 w-4" />
+    </button>
+    <span
+      role="tooltip"
+      class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 hidden group-hover:flex group-focus-within:flex items-center rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white shadow-md whitespace-nowrap dark:bg-slate-800 dark:text-slate-100 dark:border dark:border-slate-700"
+    >
+      保存为照片
+    </span>
+  </div>
 
   <Teleport to="body">
     <dialog id="records-export-dialog" ref="exportDialog" aria-labelledby="records-export-heading" aria-describedby="records-export-description" class="app-drawer drawer-lg overflow-hidden bg-white p-0 text-slate-800 dark:bg-[#121824] dark:text-slate-100" @close="handleClose" @click="handleBackdrop">
       <div class="flex h-full min-h-0 flex-col">
         <header class="drawer-header flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-5 sm:p-6 dark:border-slate-800">
           <div>
-            <h2 id="records-export-heading" class="text-lg font-bold">保存记录图片</h2>
-            <p id="records-export-description" class="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400">将全部筛选记录、照片与正文保存为一张完整长图，支持矢量保存和一键复制。</p>
+            <h2 id="records-export-heading" class="text-lg font-bold">{{ singleEntry ? '保存卡片照片' : '保存记录图片' }}</h2>
+            <p id="records-export-description" class="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400">{{ singleEntry ? '将当前记录的文字、来源与照片保存为高清图片，支持矢量保存和一键复制。' : '将全部筛选记录、照片与正文保存为一张完整长图，支持矢量保存和一键复制。' }}</p>
           </div>
           <button id="records-export-close" type="button" :aria-label="exporter.busy.value ? '取消生成并关闭' : '关闭图片预览'" class="drawer-close" @click="exporter.close"><X class="h-4 w-4" /></button>
         </header>
@@ -49,7 +90,7 @@ function generate() {
           </div>
           <div v-else-if="exporter.error.value" class="mt-5 rounded-2xl bg-amber-50 p-4 dark:bg-amber-950/30">
             <p role="alert" class="text-sm leading-6 text-amber-800 dark:text-amber-300">{{ exporter.error.value }}</p>
-            <button id="records-export-retry" type="button" class="mt-3 min-h-10 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-500" @click="exporter.generate(snapshot.filter)">重新生成</button>
+            <button id="records-export-retry" type="button" class="mt-3 min-h-10 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-500" @click="retry">重新生成</button>
           </div>
           <div v-else-if="exporter.image.value" class="mt-5 space-y-5">
             <p role="status" class="text-xs text-emerald-700 dark:text-emerald-400">{{ exporter.progress.value }}</p>

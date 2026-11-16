@@ -78,6 +78,26 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
     clearImage()
   }
 
+  async function renderSheet(all: JournalEntry[], filenamePrefix = '记录', signal: AbortSignal) {
+    entries.value = all
+    await nextTick()
+    const viewport = getViewport()
+    const sheet = getSheet()
+    if (!viewport || !sheet) throw new Error('图片排版尚未就绪，请重试')
+    progress.value = all.length === 1 ? '正在生成单条记录照片…' : `正在生成 ${all.length} 条记录的完整图片…`
+    const { captureRecordImage } = await import('../lib/record-image-export')
+    signal.throwIfAborted()
+    const date = new Intl.DateTimeFormat('sv-SE').format(new Date())
+    const result = await captureRecordImage(viewport, sheet, signal)
+    signal.throwIfAborted()
+    image.value = {
+      url: URL.createObjectURL(result.png), svgUrl: URL.createObjectURL(result.svg),
+      filename: `KeepDo-${filenamePrefix}-${date}.png`, svgFilename: `KeepDo-${filenamePrefix}-${date}.svg`,
+      png: result.png, svg: result.svg, width: result.width, height: result.height,
+    }
+    progress.value = all.length === 1 ? '单条记录照片已生成，支持下载或复制' : `共 ${all.length} 条记录，已完整合并为一张长图`
+  }
+
   async function generate(filter: JournalFeedFilter) {
     if (busy.value) return
     clearImage()
@@ -97,23 +117,7 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
         current.signal,
       )
       if (!all.length) throw new Error('当前筛选没有记录，请调整条件后再保存图片')
-      entries.value = all
-      await nextTick()
-      const viewport = getViewport()
-      const sheet = getSheet()
-      if (!viewport || !sheet) throw new Error('图片排版尚未就绪，请重试')
-      progress.value = `正在生成 ${all.length} 条记录的完整图片…`
-      const { captureRecordImage } = await import('../lib/record-image-export')
-      current.signal.throwIfAborted()
-      const date = new Intl.DateTimeFormat('sv-SE').format(new Date())
-      const result = await captureRecordImage(viewport, sheet, current.signal)
-      current.signal.throwIfAborted()
-      image.value = {
-        url: URL.createObjectURL(result.png), svgUrl: URL.createObjectURL(result.svg),
-        filename: `KeepDo-记录-${date}.png`, svgFilename: `KeepDo-记录-${date}.svg`,
-        png: result.png, svg: result.svg, width: result.width, height: result.height,
-      }
-      progress.value = `共 ${all.length} 条记录，已完整合并为一张长图`
+      await renderSheet(all, '记录', current.signal)
     } catch (cause) {
       if (!current.signal.aborted) {
         clearImage()
@@ -130,6 +134,32 @@ export function useRecordsImageExport(getViewport: () => HTMLElement | null, get
     }
   }
 
+  async function generateSingle(entry: JournalEntry) {
+    if (busy.value) return
+    clearImage()
+    const current = new AbortController()
+    controller = current
+    opened.value = true
+    busy.value = true
+    error.value = ''
+    progress.value = '正在整理单条记录照片…'
+    try {
+      await renderSheet([entry], `卡片-${entry.date}`, current.signal)
+    } catch (cause) {
+      if (!current.signal.aborted) {
+        clearImage()
+        error.value = cause instanceof Error ? cause.message : '照片生成失败，请稍后重试'
+      }
+    } finally {
+      current.abort()
+      if (controller === current) {
+        controller = undefined
+        busy.value = false
+        entries.value = []
+      }
+    }
+  }
+
   onBeforeUnmount(close)
-  return { opened, busy, progress, error, entries, image, copying, copyMessage, copyFailed, saving, saveMessage, saveFailed, generate, copyImage, saveImage, close }
+  return { opened, busy, progress, error, entries, image, copying, copyMessage, copyFailed, saving, saveMessage, saveFailed, generate, generateSingle, copyImage, saveImage, close }
 }

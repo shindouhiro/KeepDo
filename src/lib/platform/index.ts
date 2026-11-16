@@ -89,6 +89,16 @@ export async function copyImage(blob: Blob): Promise<void> {
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
 }
 
+export async function copyText(text: string): Promise<void> {
+  if (isNative) {
+    const { writeText } = await import('@tauri-apps/plugin-clipboard-manager')
+    await writeText(text)
+    return
+  }
+  if (!navigator.clipboard?.writeText) throw new Error('当前环境不支持自动复制，请选中链接手动复制')
+  await navigator.clipboard.writeText(text)
+}
+
 export function initializeNativeLinks(): void {
   if (!isNative) return
   document.documentElement.dataset.platform = 'native'

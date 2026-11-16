@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useKeepDoStore } from '../stores/keepdo'
-import { ChevronDown, Flame, Trash2, X } from '@lucide/vue'
+import { ChevronDown, Flame, NotebookPen, Trash2, X } from '@lucide/vue'
 import { useNativeDialog } from '../composables/useNativeDialog'
+import { useHabitConversion } from '../composables/useHabitConversion'
 
 const props = defineProps<{
   isOpen: boolean
@@ -80,6 +81,18 @@ function handleDelete() {
     store.deleteHabit(props.habitIdToEdit)
     emit('close')
   }
+}
+
+const { converting, convertError, convertToNote } = useHabitConversion(() => emit('close'))
+
+async function handleConvertToNote() {
+  if (!props.habitIdToEdit) return
+  const habit = store.habits.find(h => h.id === props.habitIdToEdit)
+  if (!habit) return
+  await convertToNote(habit, {
+    title: title.value.trim() || habit.title,
+    description: description.value.trim() || habit.description,
+  })
 }
 </script>
 
@@ -174,17 +187,31 @@ function handleDelete() {
           </div>
 
         </div>
+        <p v-if="convertError" role="alert" class="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">{{ convertError }}</p>
         <div class="mt-4 flex shrink-0 items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-          <div>
+          <div class="flex items-center gap-2">
             <button
               v-if="habitIdToEdit"
               type="button"
               id="habit-delete"
+              :disabled="converting"
               @click="handleDelete"
-              class="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50"
+              class="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-40 dark:hover:bg-rose-950/50"
             >
               <Trash2 class="h-3.5 w-3.5" />
               <span>删除习惯</span>
+            </button>
+            <button
+              v-if="habitIdToEdit"
+              type="button"
+              id="habit-convert-note"
+              :disabled="converting"
+              @click="handleConvertToNote"
+              class="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-40 dark:text-teal-300 dark:hover:bg-teal-950/40"
+              title="将该习惯及其历史记录修改为独立随记"
+            >
+              <NotebookPen class="h-3.5 w-3.5" />
+              <span>{{ converting ? '正在转换…' : '修改为随记' }}</span>
             </button>
           </div>
 
@@ -192,15 +219,17 @@ function handleDelete() {
             <button
               id="habit-cancel"
               type="button"
+              :disabled="converting"
               @click="$emit('close')"
-              class="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              class="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               取消
             </button>
             <button
               id="habit-save"
               type="submit"
-              class="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-500 active:scale-95"
+              :disabled="converting"
+              class="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-40 active:scale-95"
             >
               保存
             </button>

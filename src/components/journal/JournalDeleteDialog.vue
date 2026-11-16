@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { LoaderCircle, Trash2, X } from '@lucide/vue'
 import type { JournalEntry } from '../../../shared/journal'
+import { journalSubjectLabel } from '../../../shared/journal'
 import { useNativeDialog } from '../../composables/useNativeDialog'
 
 const props = defineProps<{ entry: JournalEntry; deleting: boolean; error: string }>()
@@ -18,7 +19,7 @@ const { handleClose, handleBackdrop } = useNativeDialog('deleteDialog', () => tr
       </header>
       <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <div class="mt-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-950/40">
-          <p class="text-[11px] tabular-nums text-slate-400">{{ entry.date }} · {{ entry.subjectType === 'goal' ? '目标' : '习惯' }}记录<span v-if="entry.images.length"> · {{ entry.images.length }} 张图片</span></p>
+          <p class="text-[11px] tabular-nums text-slate-400">{{ entry.date }} · {{ journalSubjectLabel(entry.subjectType) }}<span v-if="entry.images.length"> · {{ entry.images.length }} 张图片</span></p>
           <p class="mt-1.5 line-clamp-3 whitespace-pre-wrap break-words text-xs leading-6 text-slate-600 dark:text-slate-300">{{ entry.content || '这是一条图片记录' }}</p>
         </div>
         <p id="journal-delete-description" class="mt-3 text-xs leading-6 text-slate-500 dark:text-slate-400">删除后，记录中的文字和图片将一并移除，且无法恢复。目标、习惯及打卡状态不受影响。</p>

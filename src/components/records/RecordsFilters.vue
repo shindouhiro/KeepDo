@@ -11,8 +11,9 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ update: [value: JournalFeedFilter] }>()
 const types = [
-  { value: 'all', label: '全部' }, { value: 'goal', label: '目标' }, { value: 'habit', label: '习惯' },
+  { value: 'all', label: '全部' }, { value: 'goal', label: '目标' }, { value: 'habit', label: '习惯' }, { value: 'note', label: '随记' },
 ] as const
+const hasSubjectFilter = computed(() => props.filter.type === 'goal' || props.filter.type === 'habit')
 
 const preferredPreset = shallowRef<DateRangePreset | null>(null)
 const activePreset = computed(() => {
@@ -54,8 +55,8 @@ function update(patch: Partial<JournalFeedFilter>) {
       </div>
       <p class="text-[10px] leading-5 text-slate-400">最近 7 / 30 天包含今天；本周从周一、本月从 1 日算至今天。</p>
     </div>
-    <div class="grid gap-3 sm:grid-cols-2" :class="filter.type !== 'all' ? 'lg:grid-cols-3' : ''">
-      <label v-if="filter.type !== 'all'" class="min-w-0 space-y-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" for="records-filter-subject">
+    <div class="grid gap-3 sm:grid-cols-2" :class="hasSubjectFilter ? 'lg:grid-cols-3' : ''">
+      <label v-if="hasSubjectFilter" class="min-w-0 space-y-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" for="records-filter-subject">
         <span>具体{{ filter.type === 'goal' ? '目标' : '习惯' }}</span>
         <div class="relative">
           <select id="records-filter-subject" :value="filter.subjectId" class="block min-h-10 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-9 text-xs text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-400/15 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600 dark:focus:bg-slate-900" @change="update({ subjectId: ($event.target as HTMLSelectElement).value })">

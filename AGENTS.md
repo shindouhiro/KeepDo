@@ -28,7 +28,7 @@
 2. **计划日历**：周/月视图，展示目标、习惯、待办
 3. **习惯与待办**：打卡、优先级、关联目标
 4. **目标与习惯日记**：图文记录，成长时间线
-5. **记录时间线**：集中查看所有日记
+5. **记录时间线与随记**：集中查看所有图文记录，支持无需目标或习惯的独立随记
 6. **统计复盘**：行动热力图、习惯连击、目标进度
 7. **账号系统**：注册登录、数据同步、完整备份
 
@@ -485,10 +485,16 @@ pnpm run deploy
 | `/api/auth/me` | GET | 获取当前用户 |
 | `/api/data` | GET | 获取账号数据 |
 | `/api/data` | PUT | 保存账号数据 |
-| `/api/journal/:type/:id/entries` | GET | 获取日记列表 |
-| `/api/journal/:type/:id/entries/:entryId` | PUT | 保存日记 |
-| `/api/journal/:type/:id/entries/:entryId` | DELETE | 删除日记 |
-| `/api/journal/entries` | GET | 记录时间线（分页） |
+| `/api/goals/:id/journal`、`/api/habits/:id/journal` | GET | 获取目标或习惯日记列表 |
+| `/api/goals/:id/journal/:entryId`、`/api/habits/:id/journal/:entryId` | PUT / DELETE | 保存或删除目标、习惯日记 |
+| `/api/habits/:id/convert-to-notes` | POST | 将习惯及其关联历史日记修改为独立随记（无日记则以习惯名称描述生成一条随记） |
+| `/api/notes/:entryId` | PUT / DELETE | 保存或删除独立随记，沿用图文表单、版本与账号隔离规则 |
+| `/api/journal` | GET | 记录时间线（包含随记，支持筛选及分页） |
+| `/api/journal-shares/preview` | POST | 登录后预览单条/片段/整天分享，返回 snapshot 与 revision |
+| `/api/journal-shares` | POST / GET | 携带预览 revision 创建快照，或列出当前账号分享 |
+| `/api/journal-shares/:token` | DELETE | 仅所有者可撤销，级联删除分享图片 |
+| `/api/public/journal-shares/:token` | GET | 无需登录读取公开快照，不返回账号及原记录标识 |
+| `/api/public/journal-shares/:token/images/:imageId` | GET | 仅返回该令牌对应的快照图片，撤销后失效 |
 | `/api/backup` | GET | 导出完整备份 |
 | `/api/backup` | POST | 导入完整备份 |
 | `/api/github-backup` | GET | 获取当前账号 GitHub 连接状态（不返回令牌） |
@@ -501,7 +507,13 @@ pnpm run deploy
 
 ### 响应格式
 
-记录总时间线 `GET /api/journal` 支持 `type=all|goal|habit`、`subjectId`（需指定 goal/habit 类型）、`from` / `to`（包含边界的 ISO 日期）、`cursor`。筛选在服务端分页前应用，列表与图片导出使用同一组参数；图片导出遍历全部匹配分页。
+分享快照按最终公开图片地址计算 UTF-8 序列化大小，正文和图片索引合计不得超过 1.5 MB，避免大量中文正文超过 D1 单行上限。
+
+链接分享使用 `shared/journal-share.ts` 校验，请求为 `{ selection: { scope: 'entry', entryId, excerpt? } | { scope: 'day', date }, revision? }`。创建必须携带预览 revision；预览与保存间发生内容变化返回 409。所有者接口沿用原生会话通道。公开页面 `/share/:token` 独立启动，公开接口在登录校验前分发，其他日记接口仍需认证。快照与图片在 D1 batch 中原子保存，插入时再次验证原记录版本、mutation_id 与数量；限制单次 200 条 / 8 MB 图片、账号 100 链接 / 50 MB 图片。快照不随原记录删除或备份恢复改变，不包含在账号备份内。公开响应设置 no-store、no-referrer 和 noindex，禁止开放原私有图片接口。
+
+记录总时间线 `GET /api/journal` 支持 `type=all|goal|habit|note`、`subjectId`（仅 goal/habit 类型可指定，note 必须省略）、`from` / `to`（包含边界的 ISO 日期）、`cursor`。筛选在服务端分页前应用，列表与图片导出使用同一组参数；图片导出遍历全部匹配分页。
+
+随记使用 `JournalSubjectType = 'note'` 和固定 `NOTE_SUBJECT_ID = 'standalone'`，无需创建或绑定目标/习惯。随记不写入基础行动数据，不计入打卡、连击或行动统计；日记摘要只返回目标和习惯的日期。保存、删除路径由 `journalEntryPath` 统一生成，展示文案使用 `journalSubjectLabel`，禁止把非 goal 类型一律视作 habit。支持将习惯及其历史记录修改转换为随记（`POST /api/habits/:id/convert-to-notes`），迁移时保留所有图文附件并前置标题，从日常习惯列表中移除且不影响版本并发校验。完整备份 v2 包含随记，恢复校验其固定主体标识。`0009_standalone_notes.sql` 同时复制记录及图片表后更换约束，必须保留历史图片和外键关系。
 
 成功响应（200/201）：
 
@@ -606,7 +618,7 @@ export type AppData = {
 ```typescript
 // shared/journal.ts
 
-export type JournalSubjectType = 'goal' | 'habit'
+export type JournalSubjectType = 'goal' | 'habit' | 'note'
 
 export type JournalEntry = {
   id: string
